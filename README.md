@@ -39,19 +39,35 @@ La solución utilizará Python, Pydantic V2 y Gemini API.
 
 ## Preparación del entorno
 
-Desde la carpeta del proyecto, con Python instalado:
+Se requiere Python 3.10 o superior; se recomienda Python 3.11, utilizado para verificar el proyecto. También se necesita conexión a internet para instalar las dependencias y utilizar Gemini, una API key propia de Gemini y acceso al modelo configurado en esa cuenta.
+
+Cloná o descargá este repositorio y abrí una terminal en su carpeta raíz, donde se encuentra `requirements.txt`.
+
+En Windows (PowerShell):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-En Linux o macOS, activar el entorno con `source .venv/bin/activate`.
+En Linux o macOS:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+```
+
+Los comandos de copia son para la primera configuración; si ya tenés un archivo `.env`, conservá su contenido. Si PowerShell bloquea la activación, podés usar `./.venv/Scripts/python.exe` en lugar de `python` en los comandos de instalación y ejecución, sin cambiar la política del sistema.
 
 La variable requerida para Gemini API es `GEMINI_API_KEY`. El modelo se configura mediante `GEMINI_MODEL`; `.env.example` propone `gemini-3.1-flash-lite` y no contiene credenciales.
 
-El pipeline de extracción y validación está implementado. Para ejecutarlo se requiere configurar localmente la API key y el modelo de Gemini en un archivo `.env`.
+El pipeline de extracción y validación está implementado. Editá el archivo `.env` local: completá `GEMINI_API_KEY` con tu propia clave y configurá `GEMINI_MODEL` con un modelo al que tengas acceso. El modelo de ejemplo es `gemini-3.1-flash-lite`. No publiques ni agregues `.env` a Git; el repositorio lo ignora.
+
+El análisis de tokens de la Parte A usa `tiktoken` sin credenciales; su primera ejecución puede necesitar internet para descargar el vocabulario del tokenizador.
 
 ## Ejecución de un reporte individual
 
