@@ -303,3 +303,4 @@ Si el problema bloquea información importante para toma de decisiones, debe con
   Justificación: afecta a clientes premium y bloquea acceso a información clave de un pedido
 
 ## Subsecciones por definir según la consigna
+
