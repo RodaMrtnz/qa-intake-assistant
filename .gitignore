@@ -1,0 +1,21 @@
+# Secretos y entorno virtual
+.env
+.venv
+
+# Caché y bytecode de Python
+__pycache__/
+*.pyc
+
+# Archivos comunes de IDE y editores
+.vscode/
+.idea/
+*.iml
+*.suo
+*.user
+*.swp
+*.swo
+*~
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
