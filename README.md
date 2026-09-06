@@ -1,6 +1,6 @@
 # QA Intake Assistant
 
-Proyecto individual de Desarrollo de Sistemas de Inteligencia Artificial.
+Proyecto Integrador grupal de Desarrollo de Sistemas de Inteligencia Artificial.
 
 ## Descripción
 
@@ -8,9 +8,11 @@ Asistente inteligente para clasificar reportes de defectos de software escritos 
 
 El LLM se limitará a interpretar el texto: no podrá inventar datos internos, decidir reglas de negocio ni modificar directamente información real.
 
-El repositorio contiene únicamente la estructura inicial. Las Partes A, B y C y el pipeline están pendientes.
+El repositorio contiene el diagnóstico, el brief técnico y un pipeline funcional que utiliza Gemini API y Pydantic para extraer y validar información estructurada. El lote de pruebas y la interfaz web se encuentran en desarrollo.
 
-Autor: Rodrigo Martínez
+## Integrantes
+
+- Rodrigo Martínez
 
 ## Tecnologías
 
@@ -21,16 +23,16 @@ La solución utilizará Python, Pydantic V2 y Gemini API.
 ```text
 .
 ├── README.md             # Presentación e instrucciones iniciales
-├── informe.md            # Encabezados del informe
-├── schemas.py            # Futuros esquemas de datos
+├── informe.md            # Diagnóstico y brief técnico del proyecto
+├── schemas.py            # Contrato y validaciones con Pydantic
 ├── app.py                # Pipeline de extracción y validación con Gemini
 ├── resultados_lote.md    # Tabla para seis pruebas
-├── requirements.txt      # Dependencias iniciales
+├── requirements.txt      # Dependencias de Python
 ├── .env.example          # Variables de Gemini, sin credenciales
 └── .gitignore            # Exclusiones de Git
 ```
 
-## Preparación provisional del entorno
+## Preparación del entorno
 
 Desde la carpeta del proyecto, con Python instalado:
 
@@ -45,3 +47,13 @@ En Linux o macOS, activar el entorno con `source .venv/bin/activate`.
 La variable requerida para Gemini API es `GEMINI_API_KEY`. El modelo se configura mediante `GEMINI_MODEL`; `.env.example` propone `gemini-3.1-flash-lite` y no contiene credenciales.
 
 El pipeline de extracción y validación está implementado. Para ejecutarlo se requiere configurar localmente la API key y el modelo de Gemini en un archivo `.env`.
+
+## Ejecución
+
+Con el entorno virtual activado y `.env` configurado:
+
+```powershell
+python app.py "Desde la versión 2.4, la aplicación se cierra al abrir el carrito en Android."
+```
+
+El programa envía el reporte a Gemini, valida la respuesta estructurada mediante Pydantic y muestra el JSON resultante en la terminal. En esta entrega todavía no se guardan datos en SQL ni se crean tickets reales.
