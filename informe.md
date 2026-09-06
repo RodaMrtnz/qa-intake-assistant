@@ -251,7 +251,7 @@ Reporte en lenguaje natural → interpretación y extracción → validación de
 
 1. La aplicación web recibe el contrato de entrada.
 2. El backend envía `free_text` al modelo junto con el System Prompt.
-3. OpenAI devuelve una salida estructurada.
+3. Gemini devuelve una salida estructurada.
 4. Pydantic valida tipos, formatos e intenciones.
 5. Si la salida no valida, el backend devuelve un error controlado.
 6. Si valida, el backend determina la acción permitida.
@@ -259,7 +259,7 @@ Reporte en lenguaje natural → interpretación y extracción → validación de
 8. La interacción queda registrada.
 9. El resultado puede convertirse en una respuesta natural sin alterar los datos reales.
 
-En esta entrega se implementarán la recepción de un texto, la extracción con OpenAI, la validación con Pydantic y la presentación del resultado. SQL, autenticación y Jira quedan para versiones futuras. Esta sección documenta el diseño; todavía no implementa esos pasos.
+En esta entrega se implementarán la recepción de un texto, la extracción con Gemini, la validación con Pydantic y la presentación del resultado. SQL, autenticación y Jira quedan para versiones futuras. Esta sección documenta el diseño; todavía no implementa esos pasos.
 
 ## B.7 — Hipótesis más riesgosa
 

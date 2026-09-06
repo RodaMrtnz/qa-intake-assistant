@@ -14,7 +14,7 @@ Autor: Rodrigo Martínez
 
 ## Tecnologías
 
-La solución utilizará Python, Pydantic V2 y la API de OpenAI.
+La solución utilizará Python, Pydantic V2 y Gemini API.
 
 ## Estructura del repositorio
 
@@ -23,10 +23,10 @@ La solución utilizará Python, Pydantic V2 y la API de OpenAI.
 ├── README.md             # Presentación e instrucciones iniciales
 ├── informe.md            # Encabezados del informe
 ├── schemas.py            # Futuros esquemas de datos
-├── app.py                # Futuro punto de entrada de la aplicación
+├── app.py                # Pipeline de extracción y validación con Gemini
 ├── resultados_lote.md    # Tabla para seis pruebas
 ├── requirements.txt      # Dependencias iniciales
-├── .env.example          # Variables de API key y modelo, sin valores
+├── .env.example          # Variables de Gemini, sin credenciales
 └── .gitignore            # Exclusiones de Git
 ```
 
@@ -42,6 +42,6 @@ python -m pip install -r requirements.txt
 
 En Linux o macOS, activar el entorno con `source .venv/bin/activate`.
 
-Las variables `OPENAI_API_KEY` y `OPENAI_MODEL` están indicadas sin valores en `.env.example`. No se necesita una clave para esta inicialización.
+La variable requerida para Gemini API es `GEMINI_API_KEY`. El modelo se configura mediante `GEMINI_MODEL`; `.env.example` propone `gemini-3.1-flash-lite` y no contiene credenciales.
 
-Todavía no hay un pipeline implementado ni instrucciones de ejecución de la aplicación.
+El pipeline de extracción y validación está implementado. Para ejecutarlo se requiere configurar localmente la API key y el modelo de Gemini en un archivo `.env`.
