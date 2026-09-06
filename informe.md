@@ -267,4 +267,39 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 
 # Parte C
 
+## C.4 — Técnica de prompting
+
+Usamos Zero-shot porque en este tipo de tarea no necesitamos entrenar un modelo con ejemplos específicos para que entienda la instrucción. El modelo ya tiene conocimiento general del lenguaje y puede seguir una consigna directa como:
+
+“clasifica este caso de QA”
+“identifica la severidad”
+“extrae la causa raíz”
+“resume el incidente”
+
+En un asistente de intake de QA, los casos suelen ser muy variados y no siempre hay un conjunto limpio de datos etiquetados para entrenar. Además:
+
+1. El costo de preparar datos manualmente sería alto.
+2. El tiempo de implementación sería mayor.
+3. La tarea cambia con frecuencia según el tipo de incidente o el negocio.
+4. La instrucción puede adaptarse rápidamente sin volver a entrenar el modelo.
+
+Ejemplo: “En producción, al consultar el detalle de un pedido desde la app móvil, el usuario ve un error 500. El flujo afecta a clientes premium y no permite revisar la información del pedido.”
+
+Qué pasaba con Zero-shot, sin ejemplos, puede interpretar la frase como un problema “técnico aislado” y responder algo así:
+Tipo: Error de frontend
+Severidad: Media
+Motivo: “fallo de pantalla / error 500 en móvil”
+Esto ocurre porque Zero-shot entiende la frase, pero no tiene una guía explícita sobre cómo priorizar impacto comercial, segmento de clientes y criticidad del flujo.
+
+Qué pasó al agregar ejemplos si colocamos 2 o 3 ejemplos de clasificación, se le enseña la regla de negocio:
+
+Si el problema afecta un flujo crítico de negocio o clientes premium, la severidad sube.
+Si el error ocurre en una pantalla de consulta no crítica, puede ser media o baja.
+Si el problema bloquea información importante para toma de decisiones, debe considerarse alto impacto.
+
+  Entonces, con ejemplos, el mismo caso se clasifica así:
+  Tipo: Error crítico de negocio / backend en consulta de pedido
+  Severidad: Alta
+  Justificación: afecta a clientes premium y bloquea acceso a información clave de un pedido
+
 ## Subsecciones por definir según la consigna
