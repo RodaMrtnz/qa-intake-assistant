@@ -13,6 +13,10 @@ El repositorio contiene el diagnóstico, el brief técnico y un pipeline funcion
 ## Integrantes
 
 - Rodrigo Martínez
+- Nadia Alejandra Brizuela
+- Francisco Heili
+- Lucas Nicolas Grassi
+- Fernando Gomez
 
 ## Tecnologías
 
