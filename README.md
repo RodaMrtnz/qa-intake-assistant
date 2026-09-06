@@ -30,7 +30,8 @@ La solución utilizará Python, Pydantic V2 y Gemini API.
 ├── informe.md            # Diagnóstico y brief técnico del proyecto
 ├── schemas.py            # Contrato y validaciones con Pydantic
 ├── app.py                # Pipeline de extracción y validación con Gemini
-├── resultados_lote.md    # Tabla para seis pruebas
+├── batch_test.py         # Ejecución del lote de seis pruebas
+├── resultados_lote.md    # Resultados reales del lote de pruebas
 ├── requirements.txt      # Dependencias de Python
 ├── .env.example          # Variables de Gemini, sin credenciales
 └── .gitignore            # Exclusiones de Git
@@ -52,12 +53,22 @@ La variable requerida para Gemini API es `GEMINI_API_KEY`. El modelo se configur
 
 El pipeline de extracción y validación está implementado. Para ejecutarlo se requiere configurar localmente la API key y el modelo de Gemini en un archivo `.env`.
 
-## Ejecución
+## Ejecución de un reporte individual
 
-Con el entorno virtual activado y `.env` configurado:
+Permite enviar cualquier reporte escrito por el usuario. Con el entorno virtual activado y `.env` configurado:
 
 ```powershell
 python app.py "Desde la versión 2.4, la aplicación se cierra al abrir el carrito en Android."
 ```
 
 El programa envía el reporte a Gemini, valida la respuesta estructurada mediante Pydantic y muestra el JSON resultante en la terminal. En esta entrega todavía no se guardan datos en SQL ni se crean tickets reales.
+
+## Ejecución del lote de pruebas
+
+Con el entorno virtual activado y `.env` configurado, permite enviar los seis casos definidos a la API real de Gemini:
+
+```powershell
+python batch_test.py
+```
+
+El script muestra las respuestas completas, la validación de Pydantic y el resumen del lote. Cada ejecución realiza nuevas llamadas a Gemini; los resultados de la ejecución documentada se encuentran en `resultados_lote.md`.
