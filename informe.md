@@ -271,6 +271,52 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## C.5 — Cierre: dónde se conecta
 
 Encaja principalmente en los pasos 2–4 del flujo de B.6: 
@@ -287,52 +333,3 @@ Para que el sistema sea completo, falta la base de conocimiento y las integracio
 . Persistencia de interacciones
 . Confirmaciones de escritura
 . El manejo de RAG/contexto externo.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## C.5 — Cierre: Dónde se conecta
-
