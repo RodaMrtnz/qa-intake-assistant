@@ -268,3 +268,67 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 # Parte C
 
 ## Subsecciones por definir según la consigna
+
+Encaja principalmente en los pasos 2–4 del flujo de B.6: 
+
+1. Recibe "free_text".
+2. Lo envía al modelo (paso 2)
+3. Recibe la salida estructurada (paso 3)
+4. Valida la salida con Pydantic (paso 4)
+5. Queda sólo parcialmente integrada en la desición de acción (paso 6)
+
+Para que el sistema sea completo, falta la base de conocimiento y las integraciones deterministas, como por ejemplo:
+. La DB/SQL o API de Jira
+. Verificación de permisos
+. Persistencia de interacciones
+. Confirmaciones de escritura
+. El manejo de RAG/contexto externo.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## C.5 — Cierre: Dónde se conecta
+
