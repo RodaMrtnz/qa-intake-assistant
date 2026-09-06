@@ -267,7 +267,11 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 
 # Parte C
 
-## Subsecciones por definir según la consigna
+
+
+
+
+## C.5 — Cierre: dónde se conecta
 
 Encaja principalmente en los pasos 2–4 del flujo de B.6: 
 
