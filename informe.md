@@ -291,7 +291,7 @@ Severidad: Media
 Motivo: “fallo de pantalla / error 500 en móvil”
 Esto ocurre porque Zero-shot entiende la frase, pero no tiene una guía explícita sobre cómo priorizar impacto comercial, segmento de clientes y criticidad del flujo.
 
-Qué pasó al agregar ejemplos si colocamos 2 o 3 ejemplos de clasificación, se le enseña la regla de negocio:
+Qué pasó al agregar, ejemplos si colocamos 2 o 3 ejemplos de clasificación, se le enseña la regla de negocio:
 
 Si el problema afecta un flujo crítico de negocio o clientes premium, la severidad sube.
 Si el error ocurre en una pantalla de consulta no crítica, puede ser media o baja.
