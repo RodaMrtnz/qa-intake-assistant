@@ -267,6 +267,7 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 
 # Parte C
 
+<<<<<<< HEAD
 ## C.4 — Técnica de prompting
 
 Usamos Zero-shot porque en este tipo de tarea no necesitamos entrenar un modelo con ejemplos específicos para que entienda la instrucción. El modelo ya tiene conocimiento general del lenguaje y puede seguir una consigna directa como:
@@ -304,3 +305,22 @@ Si el problema bloquea información importante para toma de decisiones, debe con
 
 ## Subsecciones por definir según la consigna
 
+=======
+
+## C.5 — Cierre: dónde se conecta
+
+Encaja principalmente en los pasos 2–4 del flujo de B.6: 
+
+1. Recibe "free_text".
+2. Lo envía al modelo (paso 2)
+3. Recibe la salida estructurada (paso 3)
+4. Valida la salida con Pydantic (paso 4)
+5. Queda sólo parcialmente integrada en la desición de acción (paso 6)
+
+Para que el sistema sea completo, falta la base de conocimiento y las integraciones deterministas, como por ejemplo:
+. La DB/SQL o API de Jira
+. Verificación de permisos
+. Persistencia de interacciones
+. Confirmaciones de escritura
+. El manejo de RAG/contexto externo.
+>>>>>>> db1b075fab4c07edd6ded82a4741aa49bc760f0e
