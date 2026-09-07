@@ -305,9 +305,11 @@ Si el problema bloquea información importante para toma de decisiones, debe con
 
 ## Subsecciones por definir según la consigna
 
+
 =======
 
 ## C.5 — Cierre: dónde se conecta
+
 
 Encaja principalmente en los pasos 2–4 del flujo de B.6: 
 
