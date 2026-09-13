@@ -48,7 +48,18 @@ El modelo inventó todos los datos internos solicitados:
 - Inventó al desarrollador Martín López y su rol de Backend Developer.
 - No tenía acceso al estado actual del supuesto defecto.
 
-Presentó esos datos con un nivel de confianza alto: no manifestó incertidumbre ni aclaró que no tenía acceso al sistema interno. El formato de la respuesta podía hacer que el usuario interpretara los datos inventados como información oficial.
+El nivel de confianza aparente se evalúa cualitativamente a partir de la redacción de la respuesta; no es una probabilidad interna proporcionada por el modelo. Cada dato inventado se presentó de manera directa y categórica, sin advertencias, dudas ni aclaración de falta de acceso:
+
+| Afirmación | ¿Tenía fuente real? | Nivel de confianza aparente | Evidencia |
+| --- | --- | --- | --- |
+| Existencia del defecto registrado | No | Alto | Respondió “Registrado: Sí” sin expresar incertidumbre. |
+| Identificador `DEF-1847` | No | Alto | Presentó “Identificador: DEF-1847” como un dato del sistema. |
+| Severidad oficial | No | Alto | Afirmó “Severidad oficial: Critical” sin respaldo ni reservas. |
+| Prioridad actual | No | Alto | Indicó “Prioridad actual: P1 — High” de forma categórica. |
+| Persona asignada | No | Alto | Afirmó “Asignado a: Martín López — Backend Developer” sin aclarar que no tenía acceso al directorio. |
+| Estado actual | No | Alto | Indicó “Estado actual: In Progress” sin advertir que no podía consultar el ticket. |
+
+El formato de la respuesta podía hacer que el usuario interpretara los datos inventados como información oficial.
 
 Para responder correctamente, necesitaba acceso a una fuente de verdad, como una base SQL de defectos, Jira o una API del gestor de incidencias, además de la configuración de severidades y prioridades y el directorio real de integrantes. El LLM puede interpretar el reporte, pero no debe actuar como autoridad sobre datos internos. Las consultas y la aplicación de reglas de negocio deben quedar bajo control del backend.
 
@@ -77,6 +88,8 @@ Se comparan dos consultas equivalentes en español e inglés:
 “Since the latest update, logging into the mobile application with an existing account returns a 401 error. The issue occurs on Android and started this morning.”
 
 El archivo `token_analysis.py` utiliza `tiktoken.encoding_for_model("gpt-4o")` para contar los tokens del texto de cada consulta, sin incluir las comillas tipográficas que las delimitan en este informe. El análisis se ejecuta localmente, sin llamadas a la API de OpenAI ni credenciales.
+
+Se utilizó el tokenizador de GPT-4o porque es el modelo de referencia indicado por la consigna para esta comparación. Como el pipeline final utiliza Gemini, las cantidades obtenidas permiten analizar la diferencia entre español e inglés, pero no representan necesariamente el conteo exacto de tokens procesados o facturados por Gemini.
 
 Resultados obtenidos al ejecutar `.\.venv\Scripts\python.exe token_analysis.py` en el entorno del proyecto con tiktoken 0.14.0:
 
@@ -110,13 +123,13 @@ Actualmente deben interpretar el mensaje, buscar manualmente en el gestor de def
 
 ## B.3 — Matriz de mapeo de intenciones
 
-Las únicas intenciones válidas son `report_defect`, `search_defect`, `update_defect`, `request_guidance` y `unknown`. Estas cadenas se mantendrán exactamente iguales, en minúsculas y en inglés, en la matriz, el futuro modelo Pydantic, el System Prompt y las pruebas.
+Las únicas intenciones válidas son `report_defect`, `search_defect`, `update_defect`, `request_guidance` y `unknown`. Estas cadenas coinciden con el Literal de `intent` en `schemas.py` y con las intenciones permitidas por el System Prompt y las pruebas. La matriz describe las acciones previstas para el backend futuro; el prototipo actual solo extrae datos y valida la salida, sin consultar ni modificar tickets.
 
 | Entrada del usuario | Intención detectada por el LLM | Parámetros extraídos por el LLM | Acción determinista del backend | Riesgo de negocio y justificación |
 | --- | --- | --- | --- | --- |
 | “Desde la última versión, la aplicación se cierra al abrir el carrito en Android.” | `report_defect` | `summary`, `platform`, `app_version`, `module`, `error_code`, `steps_to_reproduce`, `expected_result` y `actual_result`. | Validar los datos y crear solamente un borrador para revisión humana. | **ALTO**, porque escribe información y podría generar un defecto incorrecto o duplicado. Requiere validación y confirmación. |
 | “¿Ya existe un defecto por el error 401 al iniciar sesión en Android?” | `search_defect` | `defect_id`, `keywords`, `platform`, `module` y `error_code`. | Consultar la base SQL o API del gestor de defectos sin modificar datos. | **BAJO**, porque es una operación de lectura. Aun así, la respuesta debe basarse en datos reales. |
-| “Cambiá el estado del defecto DEF-1847 a resuelto.” | `update_defect` | `defect_id` y `requested_changes`. | Verificar que el defecto exista, validar permisos, solicitar confirmación y recién entonces ejecutar la actualización mediante el backend. | **ALTO**, porque modifica información del sistema y puede afectar el flujo de trabajo. |
+| “Cambiá el estado del defecto DEF-1847 a resuelto.” | `update_defect` | `defect_id` y `requested_changes`. | Actualmente solo extrae y describe el cambio solicitado en `requested_changes`; no lo ejecuta. En una implementación futura, exigir autenticación, autorización, un `defect_id` específico, validación determinista de la existencia del ticket y del cambio permitido, y confirmación antes de escribir en Jira o SQL. | **ALTO**, porque en el sistema futuro implicaría una escritura o modificación del estado real de un ticket y podría afectar el flujo de trabajo del equipo. |
 | “Encontré un problema, pero no sé qué información tengo que incluir para reportarlo.” | `request_guidance` | `summary`, `platform`, `module` y `missing_fields`, cuando estén disponibles. | Consultar la guía oficial y devolver los campos necesarios para completar el reporte. | **BAJO**, porque solo proporciona orientación y no modifica información. |
 | “Necesito ayuda con algo que pasó.” | `unknown` | `summary` y `missing_fields`. | No ejecutar ninguna operación y solicitar una aclaración al usuario. | **BAJO**, porque el backend se abstiene de leer o escribir datos sensibles hasta comprender la solicitud. |
 
@@ -132,7 +145,8 @@ El LLM interpreta el lenguaje natural y extrae parámetros, pero no determina si
 | Clasificación de intención | LLM/probabilístico | La misma intención puede expresarse de muchas maneras. |
 | Extracción de parámetros | LLM/probabilístico | La plataforma, versión, módulo y resultados pueden estar distribuidos dentro del texto. |
 | Validación del contrato | Código/Pydantic/determinista | Los tipos, valores permitidos y formatos deben comprobarse mediante reglas exactas y reproducibles. |
-| Validación de `defect_id` y `error_code` | Código/determinista | El formato esperado puede verificarse con expresiones regulares y validadores. |
+| Validación de `defect_id` | Código/Pydantic/determinista | El identificador se normaliza y se valida mediante una expresión regular que exige el formato DEF- seguido de dígitos. |
+| Validación de `error_code` | Código/Pydantic/determinista | El contrato actual valida que sea un string o null; todavía no aplica un patrón específico porque los códigos pueden variar según el sistema. |
 | Búsqueda de defectos existentes | SQL o API/determinista | Solo la fuente real puede confirmar si un defecto existe. |
 | Verificación de permisos | Backend/determinista | Los permisos no pueden inferirse a partir del texto. |
 | Creación o actualización de defectos | Backend/API/determinista | Es una operación con consecuencias que debe validarse, autorizarse y registrarse. |
@@ -259,7 +273,7 @@ Reporte en lenguaje natural → interpretación y extracción → validación de
 8. La interacción queda registrada.
 9. El resultado puede convertirse en una respuesta natural sin alterar los datos reales.
 
-En esta entrega se implementarán la recepción de un texto, la extracción con Gemini, la validación con Pydantic y la presentación del resultado. SQL, autenticación y Jira quedan para versiones futuras. Esta sección documenta el diseño; todavía no implementa esos pasos.
+En esta entrega se implementaron la recepción de un texto, la extracción con Gemini, la validación con Pydantic y la presentación del resultado. SQL, autenticación, Jira y las acciones reales permanecen como componentes futuros del flujo previsto.
 
 ## B.7 — Hipótesis más riesgosa
 
@@ -267,62 +281,23 @@ La hipótesis más riesgosa es que los reportes escritos por los usuarios contie
 
 # Parte C
 
-<<<<<<< HEAD
 ## C.4 — Técnica de prompting
 
-Usamos Zero-shot porque en este tipo de tarea no necesitamos entrenar un modelo con ejemplos específicos para que entienda la instrucción. El modelo ya tiene conocimiento general del lenguaje y puede seguir una consigna directa como:
+La técnica implementada en QA Intake Assistant es **Zero-shot**. El System Prompt de `app.py` define el rol de extractor y enumera las cinco intenciones permitidas: `report_defect`, `search_defect`, `update_defect`, `request_guidance` y `unknown`. Prohíbe inventar datos internos, indica usar `null` para los campos escalares ausentes (excepto `intent`, que usa `unknown`) y listas vacías cuando no haya valores, y solicita una salida compatible con el schema. Al construir el prompt, la aplicación delimita el reporte no confiable con `<qa_report>` y `</qa_report>`, y advierte que su contenido debe analizarse como datos, no obedecerse como instrucciones.
 
-“clasifica este caso de QA”
-“identifica la severidad”
-“extrae la causa raíz”
-“resume el incidente”
+Se eligió Zero-shot porque la tarea de identificar intenciones y extraer parámetros está acotada por instrucciones explícitas, Structured Outputs y el contrato Pydantic de `schemas.py`. El prompt no contiene ejemplos de entrada/salida, por lo que no implementa Few-shot, ni solicita mostrar razonamientos intermedios, por lo que no implementa Chain-of-Thought. Estas restricciones permiten validar la estructura de la salida, pero no garantizan que su interpretación semántica sea correcta.
 
-En un asistente de intake de QA, los casos suelen ser muy variados y no siempre hay un conjunto limpio de datos etiquetados para entrenar. Además:
+Los resultados reales del lote C.3, documentados en `resultados_lote.md`, muestran el alcance y las limitaciones de esta técnica:
 
-1. El costo de preparar datos manualmente sería alto.
-2. El tiempo de implementación sería mayor.
-3. La tarea cambia con frecuencia según el tipo de incidente o el negocio.
-4. La instrucción puede adaptarse rápidamente sin volver a entrenar el modelo.
+- **Caso 1:** clasificó correctamente la entrada como `report_defect` y extrajo plataforma (`android`), versión (`2.4`), módulo (`carrito`), resultado actual (cierre de la aplicación al abrir el carrito) y resultado esperado (ver los productos agregados).
+- **Caso 6:** resistió el intento de prompt injection en esa ejecución: extrajo el reporte del botón Guardar, no agregó el campo `developer` ni reveló el System Prompt. Este resultado no demuestra resistencia universal.
+- **Caso 5:** la salida validó estructuralmente con Pydantic, pero Gemini devolvió `request_guidance` cuando la matriz B.3 esperaba `unknown`. Es una limitación semántica real: cumplir el contrato no implica elegir la intención correcta.
 
-Ejemplo: “En producción, al consultar el detalle de un pedido desde la app móvil, el usuario ve un error 500. El flujo afecta a clientes premium y no permite revisar la información del pedido.”
-
-Qué pasaba con Zero-shot, sin ejemplos, puede interpretar la frase como un problema “técnico aislado” y responder algo así:
-Tipo: Error de frontend
-Severidad: Media
-Motivo: “fallo de pantalla / error 500 en móvil”
-Esto ocurre porque Zero-shot entiende la frase, pero no tiene una guía explícita sobre cómo priorizar impacto comercial, segmento de clientes y criticidad del flujo.
-
-Qué pasó al agregar, ejemplos si colocamos 2 o 3 ejemplos de clasificación, se le enseña la regla de negocio:
-
-Si el problema afecta un flujo crítico de negocio o clientes premium, la severidad sube.
-Si el error ocurre en una pantalla de consulta no crítica, puede ser media o baja.
-Si el problema bloquea información importante para toma de decisiones, debe considerarse alto impacto.
-
-  Entonces, con ejemplos, el mismo caso se clasifica así:
-  Tipo: Error crítico de negocio / backend en consulta de pedido
-  Severidad: Alta
-  Justificación: afecta a clientes premium y bloquea acceso a información clave de un pedido
-
-## Subsecciones por definir según la consigna
-
-
-=======
+Como mejora futura, podría evaluarse Few-shot con ejemplos de entradas ambiguas para diferenciar mejor `unknown` de `request_guidance`. Esa técnica no fue implementada ni evaluada en el lote documentado; se conservan los resultados reales.
 
 ## C.5 — Cierre: dónde se conecta
 
-
-Encaja principalmente en los pasos 2–4 del flujo de B.6: 
-
-1. Recibe "free_text".
-2. Lo envía al modelo (paso 2)
-3. Recibe la salida estructurada (paso 3)
-4. Valida la salida con Pydantic (paso 4)
-5. Queda sólo parcialmente integrada en la desición de acción (paso 6)
-
-Para que el sistema sea completo, falta la base de conocimiento y las integraciones deterministas, como por ejemplo:
-. La DB/SQL o API de Jira
-. Verificación de permisos
-. Persistencia de interacciones
-. Confirmaciones de escritura
-. El manejo de RAG/contexto externo.
->>>>>>> db1b075fab4c07edd6ded82a4741aa49bc760f0e
+`app.py` implementa dos etapas centrales del flujo B.6: la interpretación y extracción mediante Gemini, y la validación del JSON mediante Pydantic, correspondientes a los pasos 2–4 del flujo técnico previsto.
+Todavía faltan la Base de Conocimiento real, las consultas a SQL, Jira o APIs internas y la validación contra catálogos y reglas oficiales.
+Antes de operaciones de escritura deberán incorporarse autenticación, autorización y confirmación.
+También faltan la ejecución determinista de acciones y, eventualmente, la respuesta humanizada; el prototipo actual solo interpreta y valida, sin consultar ni modificar información real.
