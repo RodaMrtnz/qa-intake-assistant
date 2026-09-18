@@ -173,4 +173,62 @@ SHA-256 del corpus coincidente.
 Recarga local verificada sin llamadas a la API.
 ```
 
-Esta evidencia demuestra construcción y recarga para A.4. **A.5 no se presenta como completada**: su prueba destructiva específica se realizará por separado. Tampoco se implementaron ChromaDB ni los componentes de la Parte B.
+Esta evidencia demuestra construcción y recarga para A.4. La prueba destructiva específica de A.5 se documenta por separado a continuación. No se implementaron ChromaDB ni los componentes de la Parte B.
+
+### A.5 — Prueba destructiva: volatilidad de la RAM
+
+La prueba se ejecutó localmente usando procesos separados de Python para simular el final y reinicio del entorno de ejecución. No se reinició físicamente Windows ni un servidor: la memoria del proceso finalizado no está disponible para el siguiente.
+
+1. `build-volatile` generó nuevamente los 15 embeddings documentales reales mediante `RETRIEVAL_DOCUMENT` y construyó un `IndexFlatIP` de 768 dimensiones únicamente en memoria.
+2. No llamó a `faiss.write_index()` ni creó `volatile_demo.index`. Al finalizar ese proceso de Python, la instancia del índice en RAM desapareció.
+3. `check-volatile`, ejecutado como un proceso nuevo, confirmó que no existía un archivo recuperable del índice volátil. Para reconstruirlo con este procedimiento sería necesario generar otra vez los embeddings, consumiendo nuevamente tokens o cuota y pudiendo generar costo en un nivel pago.
+4. `verify-persistent` recargó desde disco el índice real de A.4, con dimensión 768 y `ntotal=15`, sin generar embeddings documentales ni de consulta y sin llamadas a la API.
+
+| Etapa | Persistencia | Embeddings generados | Resultado |
+| --- | --- | ---: | --- |
+| Construcción volátil | Solo RAM | 15 | Índice disponible mientras vivía el proceso |
+| Proceso nuevo | Sin archivo persistido | 0 | El índice volátil ya no estaba disponible |
+| Recarga persistente | Disco mediante FAISS | 0 | Índice de 768 dimensiones y 15 documentos recuperado |
+
+#### Salidas reales
+
+```text
+> python .\volatility_demo.py build-volatile
+Índice volátil construido únicamente en RAM.
+Dimensión: 768; ntotal: 15.
+Embeddings documentales generados en esta ejecución: 15.
+No se llamó a faiss.write_index().
+El proceso finalizará sin persistir volatile_demo.index.
+Código de salida: 0
+```
+
+```text
+> python .\volatility_demo.py check-volatile
+Proceso nuevo: volatile_demo.index no existe.
+El índice construido solo en RAM no sobrevivió al reinicio del proceso.
+Para reconstruirlo sería necesario volver a generar los embeddings documentales.
+Código de salida: 0
+```
+
+```text
+> python .\volatility_demo.py verify-persistent
+Índice persistente recargado desde disco.
+Dimensión: 768; ntotal: 15.
+Embeddings documentales generados en esta ejecución: 0.
+Recarga verificada sin llamadas a la API.
+Código de salida: 0
+```
+
+Los tres comandos finalizaron con código de salida `0`. La comprobación adicional confirmó la ausencia del archivo:
+
+```text
+> Test-Path .\faiss_index\volatile_demo.index
+False
+```
+
+No se creó `volatile_demo.index`. El índice persistente `qa_knowledge.index` y su manifiesto permanecieron intactos. Los binarios y el manifiesto regenerable siguen ignorados y no se versionan; la fuente de verdad del corpus sintético continúa siendo `base_conocimiento.json`. Esta prueba demuestra volatilidad y recarga entre procesos, no atomicidad, concurrencia ni filtrado híbrido, que corresponden a la Parte B.
+
+#### Reflexión de producción
+
+En producción, un reinicio elimina cualquier índice que exista solamente en RAM, obligando a reconstruirlo y repitiendo costo, cuota y latencia.
+Con dos servidores, cada memoria es independiente; guardar una copia local reduce regeneraciones, pero para consistencia y concurrencia se necesita almacenamiento compartido o una base vectorial persistente como ChromaDB con una arquitectura adecuada para ese acceso.
