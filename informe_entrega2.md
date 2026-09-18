@@ -119,7 +119,7 @@ El script comprueba los tres scores aproximados con `np.isclose`, usando toleran
 
 El umbral **0,70** es preliminar y exclusivo de esta demostración 2D; deberá recalibrarse con embeddings reales y Killer Queries.
 Si ningún resultado supera el umbral, el sistema debe responder **«No tengo esa información.»**, sin forzar el vecino más cercano.
-`DOC-003` es cercano semánticamente, pero `activo=false` impide recomendarlo: esto anticipa el filtro obligatorio **`activo=true`** en B.4, que todavía no se implementó.
+`DOC-003` es cercano semánticamente, pero `activo=false` impide recomendarlo: esto anticipa el filtro obligatorio **`activo=true`**, implementado y demostrado en B.4.
 
 ### A.3 — Base de conocimiento documental
 
@@ -159,7 +159,7 @@ Se ejecutó búsqueda semántica pura top-3 para las tres consultas de prueba. L
 | Botón Guardar bloqueado después de corregir un campo inválido | 2 | DOC-003 | false | 0.643128 | 0.356872 |
 | Botón Guardar bloqueado después de corregir un campo inválido | 3 | DOC-002 | true | 0.634907 | 0.365093 |
 
-En las tres consultas el documento esperado quedó primero, con scores top-1 de `0.801476`, `0.802261` y `0.799975`. Los resultados secundarios son semánticamente cercanos, pero no necesariamente aplicables. `DOC-003` apareció segundo en la tercera consulta pese a estar inactivo: no es un fallo de A.4, que realiza búsqueda semántica pura sin filtrar vigencia. El caso demuestra por qué B.4 necesitará filtrar `activo=true` dentro de la consulta de ChromaDB, no mediante post-filtering de los vecinos ya recuperados.
+En las tres consultas el documento esperado quedó primero, con scores top-1 de `0.801476`, `0.802261` y `0.799975`. Los resultados secundarios son semánticamente cercanos, pero no necesariamente aplicables. `DOC-003` apareció segundo en la tercera consulta pese a estar inactivo: no es un fallo de A.4, que realiza búsqueda semántica pura sin filtrar vigencia. El caso demuestra por qué B.4 filtra `activo=true` dentro de la consulta de ChromaDB, no mediante post-filtering de los vecinos ya recuperados.
 
 #### Evidencia de persistencia
 
@@ -261,7 +261,7 @@ El cliente Gemini se crea de manera perezosa, únicamente al solicitar embedding
 | `estado_defecto` | Metadato escalar |
 | `tags_regionales` | JSON serializado en `tags_regionales_json` |
 
-`tags_regionales` se serializa mediante `json.dumps(tags, ensure_ascii=False)` porque es una lista auxiliar de sinónimos y jerga, no el filtro duro principal. `activo` no se convierte en texto: B.4 deberá filtrarlo mediante un booleano real. La ingesta rechaza colecciones con métrica, modelo, dimensión, schema o IDs adicionales incompatibles, solicitando una migración explícita; no las elimina silenciosamente.
+`tags_regionales` se serializa mediante `json.dumps(tags, ensure_ascii=False)` porque es una lista auxiliar de sinónimos y jerga, no el filtro duro principal. `activo` no se convierte en texto: B.4 lo filtra mediante un booleano real. La ingesta rechaza colecciones con métrica, modelo, dimensión, schema o IDs adicionales incompatibles, solicitando una migración explícita; no las elimina silenciosamente.
 
 #### Evidencia real de ingesta y recarga
 
@@ -296,7 +296,7 @@ Código de salida: 0
 | Límite de FAISS | Cómo se manifiesta en QA Intake Assistant | Cómo lo resuelve ChromaDB |
 | --- | --- | --- |
 | Sin persistencia transaccional o atomicidad | FAISS serializa el índice completo mediante `write_index`, pero ese archivo no constituye por sí mismo una base transaccional. En A.4 se guardan por separado índice y manifiesto, se validan con el hash del corpus y se regenera si quedan incompatibles. Una interrupción entre las escrituras puede dejar un par inconsistente, aunque cada reemplazo individual sea atómico. | ChromaDB administra documentos, embeddings y metadatos dentro de una colección persistente y expone operaciones como `upsert`. Ofrece una capa de almacenamiento más apropiada que un archivo FAISS aislado; esta entrega no demuestra garantías distribuidas ni atomicidad bajo fallos. |
-| Sin filtrado híbrido nativo | FAISS devuelve vecinos por posición y similitud, pero no conoce `plataforma`, `activo`, `proyecto` o `modulo`. En A.4 apareció `DOC-003` pese a estar inactivo porque la búsqueda fue puramente semántica. | ChromaDB almacena metadatos junto con los documentos y permite aplicar un `where` nativo durante la consulta. Esto posibilitará exigir `activo=true` y una plataforma determinada al recuperar resultados. Se implementará y demostrará en B.4; aún no se presenta como una prueba ejecutada. |
+| Sin filtrado híbrido nativo | FAISS devuelve vecinos por posición y similitud, pero no conoce `plataforma`, `activo`, `proyecto` o `modulo`. En A.4 apareció `DOC-003` pese a estar inactivo porque la búsqueda fue puramente semántica. | ChromaDB almacena metadatos junto con los documentos y permite aplicar un `where` nativo durante la consulta. Esto permite exigir `activo=true` y una plataforma determinada al recuperar resultados, como se implementó y demostró en B.4. |
 | CRUD ineficiente y concurrencia limitada | El `IndexFlatIP` conserva vectores y requiere mantener por separado su correspondencia con IDs y documentos. Actualizar o eliminar conocimiento exige coordinar índice, manifiesto y corpus; FAISS no aporta por sí solo una API documental completa ni gestión de concurrencia. | ChromaDB integra IDs, documentos y metadatos y ofrece `get`, `upsert`, `update` y `delete` dentro de una colección persistente. Esto simplifica el mantenimiento incremental y prepara el evento de negocio B.3. No se han probado escrituras concurrentes reales ni se presume coordinación automática entre servidores. |
 
 FAISS sigue siendo útil como índice liviano y rápido para búsqueda vectorial pura. ChromaDB se eligió cuando el dominio requiere persistencia documental, metadatos, filtros y actualización incremental; las capacidades posteriores se evaluarán en los apartados correspondientes.
@@ -350,4 +350,68 @@ Verificación local completada sin llamadas a la API.
 Código de salida: 0
 ```
 
-Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4–B.6 permanecen pendientes.
+Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4 se documenta a continuación; B.5 y B.6 permanecen pendientes.
+
+### B.4 — Búsqueda híbrida con filtros nativos
+
+La función implementada es `buscar_defectos(query_semantica, plataforma, solo_activos, n_resultados, collection)`. La similitud semántica se obtiene mediante `query_texts`, que activa `GeminiEmbeddingFunction.embed_query` con `RETRIEVAL_QUERY`. Los embeddings documentales persistidos no se regeneran.
+
+ChromaDB aplica los filtros durante la consulta mediante `where`, combinando la plataforma solicitada y `activo=true`:
+
+```python
+{
+    "$and": [
+        {"plataforma": {"$eq": plataforma}},
+        {"activo": {"$eq": True}},
+    ]
+}
+```
+
+No existe postfiltrado en Python ni se piden resultados adicionales para filtrarlos o recortarlos después. La decisión de negocio es no recomendar conocimiento inactivo; por eso `solo_activos=False` se rechaza. La colección utiliza distancia coseno y el programa informa:
+
+```python
+similitud_coseno = 1.0 - distancia_coseno
+```
+
+Todavía no se aplica un umbral mínimo de similitud porque su elección corresponde a C.2. Los resultados pertenecen a un corpus académico sintético y no confirman tickets externos.
+
+| Consulta | Plataforma exigida | Primer resultado | Similitud top-1 | Efecto del filtro |
+| -------- | ------------------ | ---------------- | --------------: | ----------------- |
+| Carrito/cesta | `android` | `DOC-001` | 0.801475 | Todos los resultados fueron Android y activos. |
+| Login 401 | `web` | `DOC-002` | 0.802260 | Todos los resultados fueron web y activos. |
+| Face ID después de actualizar iOS | `ios` | `DOC-009` | 0.625396 | `DOC-003` fue excluido por `activo=false`; solo dos registros iOS satisfacían ambos filtros. |
+
+`DOC-003`, aunque es el antecedente semánticamente más directo del corpus para Face ID, tiene `activo=false` y fue excluido. Chroma devolvió solo dos documentos porque únicamente dos registros iOS satisfacían simultáneamente el filtro de plataforma y vigencia. `DOC-009` no se presenta como una solución suficientemente relevante: sin umbral, solamente es el vecino activo más cercano dentro del subconjunto permitido.
+
+#### Evidencia real
+
+```text
+> python .\vector_db.py search --query "La app se cierra al abrir la cesta después de agregar un artículo agotado." --platform android --n-results 3
+Corpus sintético: los resultados no confirman tickets externos.
+Filtro nativo: {"$and": [{"plataforma": {"$eq": "android"}}, {"activo": {"$eq": true}}]}
+1. ID=DOC-001 | defect_id=DEF-1001 | proyecto=tienda_web | plataforma=android | modulo=carrito | activo=True | distancia=0.198525 | similitud=0.801475
+2. ID=DOC-007 | defect_id=DEF-1007 | proyecto=tienda_web | plataforma=android | modulo=promociones | activo=True | distancia=0.329208 | similitud=0.670792
+3. ID=DOC-008 | defect_id=DEF-1008 | proyecto=portal_clientes | plataforma=android | modulo=autenticacion | activo=True | distancia=0.374876 | similitud=0.625124
+Código de salida: 0
+```
+
+```text
+> python .\vector_db.py search --query "El login devuelve 401 después de renovar una sesión vencida." --platform web --n-results 3
+Corpus sintético: los resultados no confirman tickets externos.
+Filtro nativo: {"$and": [{"plataforma": {"$eq": "web"}}, {"activo": {"$eq": true}}]}
+1. ID=DOC-002 | defect_id=DEF-1002 | proyecto=portal_clientes | plataforma=web | modulo=autenticacion | activo=True | distancia=0.197740 | similitud=0.802260
+2. ID=DOC-012 | defect_id=DEF-1012 | proyecto=banca_movil | plataforma=web | modulo=reportes | activo=True | distancia=0.436141 | similitud=0.563859
+3. ID=DOC-010 | defect_id=DEF-1010 | proyecto=portal_clientes | plataforma=web | modulo=adjuntos | activo=True | distancia=0.441705 | similitud=0.558295
+Código de salida: 0
+```
+
+```text
+> python .\vector_db.py search --query "Después de actualizar iOS, Face ID rechaza el acceso y hay que registrar nuevamente la biometría." --platform ios --n-results 3
+Corpus sintético: los resultados no confirman tickets externos.
+Filtro nativo: {"$and": [{"plataforma": {"$eq": "ios"}}, {"activo": {"$eq": true}}]}
+1. ID=DOC-009 | defect_id=DEF-1009 | proyecto=portal_clientes | plataforma=ios | modulo=autenticacion | activo=True | distancia=0.374604 | similitud=0.625396
+2. ID=DOC-006 | defect_id=DEF-1006 | proyecto=tienda_web | plataforma=ios | modulo=notificaciones | activo=True | distancia=0.426696 | similitud=0.573304
+Código de salida: 0
+```
+
+Las tres ejecuciones terminaron con código `0`. La prueba demuestra búsqueda semántica combinada con filtrado nativo por metadatos y que un antecedente inactivo queda excluido antes de formar los resultados. No demuestra todavía un umbral de aceptación, calidad universal de recuperación, ETL, purga ni Killer Queries. B.5 y B.6 continúan pendientes.

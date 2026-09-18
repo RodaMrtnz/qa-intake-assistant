@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import math
 import os
+from numbers import Real
 from pathlib import Path
 
 import chromadb
@@ -46,6 +48,66 @@ class HotEventError(CollectionError):
 
 class RestorationError(CollectionError):
     pass
+
+
+class SearchError(CollectionError):
+    pass
+
+
+PLATFORMS = ("web", "android", "ios", "desktop")
+
+
+def search_parameters(query_semantica: str, plataforma: str,
+                      solo_activos: bool, n_resultados: int) -> tuple[str, dict]:
+    if not isinstance(query_semantica, str) or not query_semantica.strip():
+        raise SearchError("La consulta debe contener texto.")
+    if not isinstance(plataforma, str) or plataforma.strip().lower() not in PLATFORMS:
+        raise SearchError("Plataforma inválida: usar web, android, ios o desktop.")
+    if type(n_resultados) is not int or n_resultados <= 0:
+        raise SearchError("n_resultados debe ser un entero positivo.")
+    if solo_activos is not True:
+        raise SearchError("Solo se permite recomendar conocimiento activo.")
+    return query_semantica.strip(), {"$and": [
+        {"plataforma": {"$eq": plataforma.strip().lower()}},
+        {"activo": {"$eq": True}},
+    ]}
+
+
+def buscar_defectos(query_semantica: str, plataforma: str, solo_activos: bool,
+                    n_resultados: int, collection) -> list[dict]:
+    """Recupera conocimiento sintético; no confirma tickets externos.
+
+    Chroma aplica where; aquí solo se valida y transforma su respuesta.
+    query_texts activa embed_query con RETRIEVAL_QUERY, sin embeddings manuales.
+    """
+    query, where = search_parameters(query_semantica, plataforma, solo_activos, n_resultados)
+    response = collection.query(
+        query_texts=[query], n_results=n_resultados, where=where,
+        include=["documents", "metadatas", "distances"],
+    )
+    fields = ("ids", "documents", "metadatas", "distances")
+    if not isinstance(response, dict):
+        raise SearchError("Respuesta de búsqueda inválida.")
+    rows = []
+    for field in fields:
+        batches = response.get(field)
+        if not isinstance(batches, list) or len(batches) != 1 or not isinstance(batches[0], list):
+            raise SearchError("Estructuras de búsqueda inconsistentes.")
+        rows.append(batches[0])
+    if len({len(row) for row in rows}) != 1 or len(rows[0]) > n_resultados:
+        raise SearchError("Cantidades de resultados inconsistentes.")
+    results = []
+    for doc_id, document, metadata, distance in zip(*rows):
+        if (not isinstance(doc_id, str) or not doc_id.strip()
+                or not isinstance(document, str) or not isinstance(metadata, dict)
+                or isinstance(distance, bool) or not isinstance(distance, Real)
+                or not math.isfinite(distance)):
+            raise SearchError("Resultado o distancia de búsqueda inválidos.")
+        results.append({
+            "id": doc_id, "documento": document, "metadatos": metadata,
+            "distancia_coseno": float(distance), "similitud_coseno": 1.0 - float(distance),
+        })
+    return results
 
 
 @register_embedding_function
@@ -306,14 +368,42 @@ def hot_event(client, documents: list[dict], model: str,
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("ingest", "verify", "hot-event"))
+    commands = parser.add_subparsers(dest="command", required=True)
+    for command in ("ingest", "verify", "hot-event"):
+        commands.add_parser(command)
+    search = commands.add_parser("search", help="Buscar conocimiento sintético activo")
+    search.add_argument("--query", required=True)
+    search.add_argument("--platform", required=True, type=lambda value: value.strip().lower(),
+                        choices=PLATFORMS)
+    search.add_argument("--n-results", type=int, default=3)
     args = parser.parse_args(argv)
     try:
+        if args.command == "search":
+            _, where = search_parameters(args.query, args.platform, True, args.n_results)
         api_key, model, path = load_configuration(verify=args.command == "verify")
         documents = load_corpus()
-        if args.command in ("verify", "hot-event") and not (path / "chroma.sqlite3").is_file():
+        if args.command in ("verify", "hot-event", "search") and not (path / "chroma.sqlite3").is_file():
             raise CollectionError("Base persistente inexistente; primero ejecutar ingest.")
         client = persistent_client(path)
+        if args.command == "search":
+            existing = client.get_collection(COLLECTION_NAME, embedding_function=None)
+            ids, _, _ = corpus_records(documents)
+            validate_collection(existing, model, ids)
+            function = GeminiEmbeddingFunction(model=model, api_key=api_key)
+            collection = client.get_collection(COLLECTION_NAME, embedding_function=function)
+            results = buscar_defectos(args.query, args.platform, True, args.n_results, collection)
+            print("Corpus sintético: los resultados no confirman tickets externos.")
+            print("Filtro nativo: " + json.dumps(where, ensure_ascii=False))
+            if not results:
+                print("Sin resultados para la consulta y el filtro solicitado.")
+            for position, result in enumerate(results, start=1):
+                metadata = result["metadatos"]
+                print(f"{position}. ID={result['id']} | defect_id={metadata.get('defect_id')} | "
+                      f"proyecto={metadata.get('proyecto')} | plataforma={metadata.get('plataforma')} | "
+                      f"modulo={metadata.get('modulo')} | activo={metadata.get('activo')} | "
+                      f"distancia={result['distancia_coseno']:.6f} | "
+                      f"similitud={result['similitud_coseno']:.6f}")
+            return EXIT_OK
         if args.command == "hot-event":
             function = GeminiEmbeddingFunction(model=model, api_key=api_key)
             hot_event(client, documents, model, function)
