@@ -350,7 +350,7 @@ Verificación local completada sin llamadas a la API.
 Código de salida: 0
 ```
 
-Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4 y B.5 se documentan a continuación; B.6 permanece pendiente.
+Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4–B.6 se documentan a continuación.
 
 ### B.4 — Búsqueda híbrida con filtros nativos
 
@@ -414,7 +414,7 @@ Filtro nativo: {"$and": [{"plataforma": {"$eq": "ios"}}, {"activo": {"$eq": true
 Código de salida: 0
 ```
 
-Las tres ejecuciones terminaron con código `0`. La prueba demuestra búsqueda semántica combinada con filtrado nativo por metadatos y que un antecedente inactivo queda excluido antes de formar los resultados. No demuestra todavía un umbral de aceptación, calidad universal de recuperación, ETL, purga ni Killer Queries. El ETL y la purga se documentan en B.5; B.6 continúa pendiente.
+Las tres ejecuciones terminaron con código `0`. La prueba demuestra búsqueda semántica combinada con filtrado nativo por metadatos y que un antecedente inactivo queda excluido antes de formar los resultados. No demuestra todavía un umbral de aceptación, calidad universal de recuperación, ETL, purga ni Killer Queries. El ETL y la purga se documentan en B.5; las Killer Queries, en B.6.
 
 ### B.5 — ETL y purga semántica
 
@@ -502,4 +502,18 @@ Código de salida: 0
 
 PowerShell informó aparte `$LASTEXITCODE = 0`.
 
-La prueba demuestra normalización, resolución de IDs y purga semántica sobre un conjunto controlado. No demuestra todavía ingestión automática desde sistemas externos, calibración con un corpus productivo ni las Killer Queries de B.6, que continúa pendiente.
+La prueba demuestra normalización, resolución de IDs y purga semántica sobre un conjunto controlado. No demuestra todavía ingestión automática desde sistemas externos ni calibración con un corpus productivo. Las Killer Queries se documentan en B.6.
+
+### B.6 — Killer Queries
+
+Se evaluaron tres consultas trampa sobre el corpus académico sintético: jerga para el cierre del carrito Android, Face ID después de actualizar iOS y una impresora 3D fuera del catálogo. Evalúan respectivamente recuperación por significado, riesgo de recomendar conocimiento obsoleto y aceptación indebida del vecino matemáticamente más cercano. Las tres pasaron.
+
+| Caso | Resultado principal | Similitud coseno | ¿Pasó? |
+| ---- | ------------------- | ---------------: | ------ |
+| Jerga: changuito y mercadería sin existencias | `DOC-001` top-1 aceptado; vecinos Android activos | 0.773748 | Sí |
+| Face ID: antecedente obsoleto | Crudo: `DOC-003` inactivo top-1; híbrido: excluido, `DOC-009` top-1 y `DOC-006` segundo; respuesta `No tengo esa información.` | Crudo: 0.784778; híbrido: 0.622149 y 0.570439 | Sí |
+| Impresora 3D fuera del catálogo | Único vecino `DOC-015`, rechazado; respuesta `No tengo esa información.` | 0.537786 | Sí |
+
+La evidencia detallada, vecinos, distancias y salida literal están en [resultados_killer_queries.md](resultados_killer_queries.md). Se utilizaron cuatro embeddings de consulta y cero documentales, sin escrituras sobre ChromaDB. El `where` productivo siguió siendo nativo por plataforma y `activo=true`; el diagnóstico sin filtros del segundo caso solo evidenció el riesgo y no produjo la respuesta productiva. No hubo postfiltrado manual de metadatos.
+
+El umbral inclusivo de similitud `>= 0.70` aceptó el antecedente correcto y permitió abstenerse en los otros dos casos. Todavía se denomina preliminar hasta la justificación final de C.2; estas pruebas sobre un corpus pequeño no garantizan calidad universal. Los resultados no confirman tickets externos.
