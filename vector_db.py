@@ -40,6 +40,14 @@ class CollectionError(ValueError):
     pass
 
 
+class HotEventError(CollectionError):
+    pass
+
+
+class RestorationError(CollectionError):
+    pass
+
+
 @register_embedding_function
 class GeminiEmbeddingFunction(EmbeddingFunction[Documents]):
     """Cliente perezoso: get_config/build_from_config nunca crean clientes."""
@@ -221,16 +229,95 @@ def verify(client, documents: list[dict], model: str):
     return collection
 
 
+def check_event_record(collection, text: str, metadata: dict) -> None:
+    record = collection.get(ids=["DOC-007"], include=["documents", "metadatas"])
+    if (record["ids"] != ["DOC-007"] or record["documents"] != [text]
+            or record["metadatas"] != [metadata]
+            or type(record["metadatas"][0]["activo"]) is not bool
+            or collection.count() != 15):
+        raise HotEventError("Estado inesperado de DOC-007 o de la colección.")
+
+
+def hot_event(client, documents: list[dict], model: str,
+              embedding_function: GeminiEmbeddingFunction) -> None:
+    """Retira temporalmente una solución y restaura la fuente en finally.
+
+    add no corresponde a un ID existente; update requiere garantizar su existencia.
+    upsert permite insertar o actualizar y repetir el flujo de forma idempotente.
+    Las operaciones separadas no constituyen una transacción ni un bloqueo distribuido.
+    """
+    ids, texts, metas = corpus_records(documents)
+    if "DOC-007" not in ids:
+        raise HotEventError("DOC-007 no está en el corpus.")
+    position = ids.index("DOC-007")
+    text, original_metadata = texts[position], metas[position]
+    if original_metadata["activo"] is not True:
+        raise HotEventError("La fuente debe declarar DOC-007 activo.")
+    existing = client.get_collection(COLLECTION_NAME, embedding_function=None)
+    verify_collection(existing, documents, model)
+    collection = client.get_collection(COLLECTION_NAME, embedding_function=embedding_function)
+    check_event_record(collection, text, original_metadata)
+    changed_metadata = dict(original_metadata)
+    changed_metadata["activo"] = False
+    applied = False
+    original_error = None
+    expected_errors = (ChromaError, ValueError, RuntimeError, OSError,
+                       httpx.NetworkError, httpx.TimeoutException, errors.APIError)
+    try:
+        # documents implica un embedding documental, incluso sin cambiar el texto.
+        collection.upsert(ids=["DOC-007"], documents=[text], metadatas=[changed_metadata])
+        applied = True
+        check_event_record(collection, text, changed_metadata)
+        print("Evento en caliente sobre DOC-007.")
+        print("Estado anterior: activo=true.")
+        print("Operación aplicada: upsert.")
+        print("Estado recuperado con get: activo=false.")
+        print("Cantidad de documentos durante el evento: 15.")
+        print("Cambio verificado: la solución quedó temporalmente fuera de vigencia.")
+    except expected_errors as error:
+        original_error = error
+    finally:
+        if not applied and original_error is not None:
+            # Una operación puede persistirse y fallar antes de confirmar al cliente.
+            # Si no se puede comprobar el estado, se intenta restaurar por seguridad.
+            try:
+                check_event_record(collection, text, original_metadata)
+            except expected_errors:
+                applied = True
+        if applied:
+            try:
+                collection.upsert(ids=["DOC-007"], documents=[text], metadatas=[original_metadata])
+                check_event_record(collection, text, original_metadata)
+                verify_collection(collection, documents, model)
+            except expected_errors as restoration_error:
+                original_type = type(original_error).__name__ if original_error is not None else "ninguno"
+                # Solo tipos de error: no se muestran mensajes remotos ni credenciales.
+                raise RestorationError(
+                    "No se puede garantizar la restauración. "
+                    f"Error original: {original_type}; "
+                    f"error de restauración: {type(restoration_error).__name__}."
+                ) from restoration_error
+            print("Restauración aplicada mediante upsert.")
+            print("Estado final: activo=true.")
+            print("Colección restaurada y verificada contra base_conocimiento.json.")
+    if original_error is not None:
+        raise original_error
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("ingest", "verify"))
+    parser.add_argument("command", choices=("ingest", "verify", "hot-event"))
     args = parser.parse_args(argv)
     try:
         api_key, model, path = load_configuration(verify=args.command == "verify")
         documents = load_corpus()
-        if args.command == "verify" and not (path / "chroma.sqlite3").is_file():
+        if args.command in ("verify", "hot-event") and not (path / "chroma.sqlite3").is_file():
             raise CollectionError("Base persistente inexistente; primero ejecutar ingest.")
         client = persistent_client(path)
+        if args.command == "hot-event":
+            function = GeminiEmbeddingFunction(model=model, api_key=api_key)
+            hot_event(client, documents, model, function)
+            return EXIT_OK
         if args.command == "ingest":
             function = GeminiEmbeddingFunction(model=model, api_key=api_key)
             collection = ingest(client, documents, model, function)

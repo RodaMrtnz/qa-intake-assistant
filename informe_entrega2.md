@@ -300,3 +300,54 @@ Código de salida: 0
 | CRUD ineficiente y concurrencia limitada | El `IndexFlatIP` conserva vectores y requiere mantener por separado su correspondencia con IDs y documentos. Actualizar o eliminar conocimiento exige coordinar índice, manifiesto y corpus; FAISS no aporta por sí solo una API documental completa ni gestión de concurrencia. | ChromaDB integra IDs, documentos y metadatos y ofrece `get`, `upsert`, `update` y `delete` dentro de una colección persistente. Esto simplifica el mantenimiento incremental y prepara el evento de negocio B.3. No se han probado escrituras concurrentes reales ni se presume coordinación automática entre servidores. |
 
 FAISS sigue siendo útil como índice liviano y rápido para búsqueda vectorial pura. ChromaDB se eligió cuando el dominio requiere persistencia documental, metadatos, filtros y actualización incremental; las capacidades posteriores se evaluarán en los apartados correspondientes.
+
+### B.3 — Evento de negocio en caliente
+
+`DOC-007` representa una solución conocida para promociones Android del proyecto ficticio `tienda_web`. Su metadato inicial era `activo=true`. Se simuló que la solución debía retirarse temporalmente de circulación mientras era revisada, sin eliminar el antecedente ni cambiar el estado histórico del defecto.
+
+El subcomando `hot-event` aplicó `activo=false` mediante `collection.upsert` y recuperó inmediatamente el registro mediante `collection.get(ids=["DOC-007"], include=["documents", "metadatas"])`. El registro continuó existiendo y la colección mantuvo 15 documentos. Solo cambió el booleano `activo`: el documento y los demás metadatos permanecieron iguales.
+
+| Momento | Operación | `activo` | Cantidad de documentos |
+| --- | --- | --- | ---: |
+| Antes del evento | `get` | `true` | 15 |
+| Durante el evento | `upsert` + `get` | `false` | 15 |
+| Después de restaurar | `upsert` + `get` | `true` | 15 |
+
+#### Elección de la operación
+
+`add` no corresponde porque `DOC-007` ya existe y podría rechazar el ID duplicado. `update` serviría solamente si se garantiza previamente que el ID existe. `upsert` permite insertar o actualizar y hace que el flujo pueda repetirse sin crear otro registro. En este evento el ID ya existía, pero se utilizó la misma operación segura que la ingesta. Varias llamadas `upsert` no constituyen una única transacción ni resuelven por sí mismas la concurrencia distribuida.
+
+#### Restauración y consumo de embeddings
+
+Para conservar `base_conocimiento.json` como fuente de verdad y no afectar las pruebas posteriores de B.4, el script restauró el documento original en un bloque `finally`, mediante otro `upsert`. El flujo contempla errores donde una escritura pudo haberse aplicado sin recibir confirmación: comprueba el estado y, ante un cambio o incertidumbre, intenta restaurar; si falla la restauración, informa el error original y el de restauración sin revelar credenciales.
+
+La posterior ejecución independiente de `verify` confirmó 15 documentos y coincidencia completa con el corpus. No se modificó `base_conocimiento.json`. Tanto el cambio como la restauración incluyeron el documento en cada `upsert`, por lo que se generaron dos embeddings documentales mediante `RETRIEVAL_DOCUMENT`. La ejecución posterior de `verify` no generó embeddings ni llamó a Gemini.
+
+#### Evidencia real
+
+```text
+> python .\vector_db.py hot-event
+Evento en caliente sobre DOC-007.
+Estado anterior: activo=true.
+Operación aplicada: upsert.
+Estado recuperado con get: activo=false.
+Cantidad de documentos durante el evento: 15.
+Cambio verificado: la solución quedó temporalmente fuera de vigencia.
+Restauración aplicada mediante upsert.
+Estado final: activo=true.
+Colección restaurada y verificada contra base_conocimiento.json.
+Código de salida: 0
+```
+
+```text
+> python .\vector_db.py verify
+Colección persistente recargada.
+Colección: qa_intake_knowledge
+Documentos almacenados: 15
+IDs verificados: 15
+Métrica: cosine
+Verificación local completada sin llamadas a la API.
+Código de salida: 0
+```
+
+Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4–B.6 permanecen pendientes.
