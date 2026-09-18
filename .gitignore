@@ -19,3 +19,9 @@ __pycache__/
 # Archivos del sistema operativo
 .DS_Store
 Thumbs.db
+
+# Entrega 2 - artefactos vectoriales regenerables
+*.index
+*.faiss
+faiss_index/
+chroma_db/
