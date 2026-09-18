@@ -11,7 +11,12 @@ consulta_en = (
     "account returns a 401 error. The issue occurs on Android and started this morning."
 )
 
-encoding = tiktoken.encoding_for_model("gpt-4o")
+def main() -> int:
+    encoding = tiktoken.encoding_for_model("gpt-4o")
+    print(f"Español: {len(encoding.encode(consulta_es))} tokens")
+    print(f"Inglés: {len(encoding.encode(consulta_en))} tokens")
+    return 0
 
-print(f"Español: {len(encoding.encode(consulta_es))} tokens")
-print(f"Inglés: {len(encoding.encode(consulta_en))} tokens")
+
+if __name__ == "__main__":
+    raise SystemExit(main())
