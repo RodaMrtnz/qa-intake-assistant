@@ -1,0 +1,315 @@
+[
+  {
+    "id": "DOC-001",
+    "descripcion_semantica": "En el proyecto ficticio tienda_web, una prueba académica reprodujo un cierre inesperado de la aplicación Android al abrir el carrito después de agregar un producto sin stock. Para observarlo, se seleccionaba un artículo disponible, se simulaba el agotamiento de existencias antes de confirmar su incorporación y se abría la cesta de compra. Se esperaba visualizar el producto marcado como no disponible y poder retirarlo; el resultado real era la terminación de la aplicación al interpretar una cantidad de inventario ausente. En este escenario sintético, la solución verificada consistió en validar la respuesta de stock, representar los artículos agotados sin calcular cantidades nulas y mostrar una advertencia. La repetición de los pasos confirmó que el carrito permanecía accesible y la compra podía continuar con otros productos.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "android",
+      "modulo": "carrito",
+      "activo": true,
+      "defect_id": "DEF-1001",
+      "estado_defecto": "resolved",
+      "tags_regionales": ["carrito", "cesta", "compra", "cierre inesperado"]
+    }
+  },
+  {
+    "id": "DOC-002",
+    "descripcion_semantica": "En el proyecto ficticio portal_clientes, el escenario académico de autenticación web registraba un error 401 durante el ingreso con credenciales válidas cuando el navegador conservaba una sesión anterior. La reproducción consistía en iniciar sesión, dejar vencer el token de acceso, renovar la sesión y volver a utilizar el formulario de login. Se esperaba acceder al panel del cliente; en cambio, la primera solicitud protegida era rechazada y devolvía al usuario a la pantalla de acceso. La causa validada dentro del caso sintético era que el cliente seguía enviando el token anterior mientras guardaba el renovado. La solución verificada actualizó el encabezado de autorización antes de permitir nuevas solicitudes y eliminó el token vencido. Las pruebas posteriores confirmaron el inicio de sesión y la navegación sin respuestas 401 tras la renovación.",
+    "metadatos": {
+      "proyecto": "portal_clientes",
+      "plataforma": "web",
+      "modulo": "autenticacion",
+      "activo": true,
+      "defect_id": "DEF-1002",
+      "estado_defecto": "closed",
+      "tags_regionales": ["login", "acceso", "ingreso", "sesión"]
+    }
+  },
+  {
+    "id": "DOC-003",
+    "descripcion_semantica": "En el proyecto ficticio banca_movil, un caso académico histórico describía cómo una versión antigua de la aplicación iOS bloqueaba el acceso biométrico después de actualizar el sistema operativo. Para reproducirlo, se habilitaba Face ID, se actualizaba iOS y se intentaba el desbloqueo mediante reconocimiento facial. Se esperaba recuperar el acceso tras la autenticación del dispositivo; el resultado real era un rechazo persistente porque la aplicación reutilizaba una configuración biométrica invalidada. En aquel escenario sintético se verificó una solución que permitía ingresar con contraseña, eliminar la configuración anterior y registrar nuevamente la biometría. Una implementación posterior sustituyó ese mecanismo por una gestión automática de cambios del sistema. Este documento está inactivo: conserva un antecedente histórico resuelto, pero su procedimiento manual quedó obsoleto y no debe recomendarse como solución vigente.",
+    "metadatos": {
+      "proyecto": "banca_movil",
+      "plataforma": "ios",
+      "modulo": "biometria",
+      "activo": false,
+      "defect_id": "DEF-1003",
+      "estado_defecto": "resolved",
+      "tags_regionales": ["face id", "acceso biométrico", "reconocimiento facial", "desbloqueo"]
+    }
+  },
+  {
+    "id": "DOC-004",
+    "descripcion_semantica": "En el proyecto ficticio tienda_web, una prueba académica detectó que el total del carrito se duplicaba al modificar rápidamente la cantidad de un producto antes del checkout. Se reproducía agregando dos unidades, cambiando varias veces el selector de cantidad y avanzando hacia el pago sin esperar las respuestas pendientes. Se esperaba que la cesta mostrara el precio correspondiente a la cantidad final; el resultado real sumaba importes de estados anteriores y encarecía la compra. La revisión del escenario sintético identificó cálculos acumulativos ejecutados por respuestas fuera de orden. La solución verificada descartó actualizaciones antiguas y recalculó el total desde el estado actual completo, sin sumar resultados previos. Las pruebas con cambios rápidos confirmaron un único importe coherente antes de pagar.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "web",
+      "modulo": "carrito",
+      "activo": true,
+      "defect_id": "DEF-1004",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "carrito",
+        "cesta",
+        "total duplicado",
+        "checkout"
+      ]
+    }
+  },
+  {
+    "id": "DOC-005",
+    "descripcion_semantica": "En el proyecto ficticio tienda_web, un antecedente académico del catálogo web registraba imágenes ausentes después de publicar una actualización de recursos. Para reproducirlo, se visitaba una categoría con caché previa, se desplegaban nuevas fotos y se recargaba la página. Se esperaba visualizar las imágenes de los productos; el resultado real mostraba espacios vacíos porque las referencias antiguas apuntaban a rutas retiradas del CDN. En ese escenario sintético se verificó un workaround que invalidaba la caché y reemplazaba las direcciones guardadas por referencias vigentes. Posteriormente se sustituyó la administración de recursos por un sistema de manifiestos versionados. El documento está inactivo: el ticket histórico quedó cerrado, pero aquella intervención manual es obsoleta y no corresponde aplicarla al catálogo actual.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "web",
+      "modulo": "catalogo",
+      "activo": false,
+      "defect_id": "DEF-1005",
+      "estado_defecto": "closed",
+      "tags_regionales": [
+        "catálogo",
+        "imágenes",
+        "fotos",
+        "recursos",
+        "caché"
+      ]
+    }
+  },
+  {
+    "id": "DOC-006",
+    "descripcion_semantica": "En el proyecto ficticio tienda_web, una prueba académica de seguimiento en iOS detectó que una notificación push abría un pedido diferente del anunciado. La reproducción requería consultar un pedido, dejar la aplicación en segundo plano y tocar un aviso correspondiente a otra compra. Se esperaba ver el seguimiento del pedido indicado en la notificación; el resultado real mostraba el último pedido consultado porque la ruta interna reutilizaba un identificador almacenado. En este escenario sintético, la solución verificada extrajo el identificador del pedido desde el evento recibido, comprobó su asociación con el aviso y construyó una ruta nueva. Las pruebas alternando notificaciones de pedidos distintos confirmaron que cada apertura llevaba al detalle correcto, sin reutilizar la navegación anterior.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "ios",
+      "modulo": "notificaciones",
+      "activo": true,
+      "defect_id": "DEF-1006",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "notificación push",
+        "aviso",
+        "seguimiento",
+        "pedido equivocado"
+      ]
+    }
+  },
+  {
+    "id": "DOC-007",
+    "descripcion_semantica": "En el proyecto ficticio tienda_web, un escenario académico de promociones Android mostraba un cupón aceptado cuyo descuento desaparecía al recuperar la conexión. Para reproducirlo, se cargaba una compra, se desactivaba la red, se ingresaba un cupón previamente conocido y se restablecía la conectividad antes de revisar el total. Se esperaba confirmar la promoción y actualizar el importe; el resultado real conservaba el aviso de aceptación mientras cobraba el precio sin descuento. La causa del caso sintético era una sincronización incompleta entre la promoción pendiente y el carrito. La solución verificada distinguió aceptación provisional de confirmación, sincronizó el cupón con el servicio simulado y recalculó el total desde la respuesta validada. Las pruebas de reconexión confirmaron importes y mensajes consistentes.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "android",
+      "modulo": "promociones",
+      "activo": true,
+      "defect_id": "DEF-1007",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "cupón",
+        "descuento",
+        "promoción",
+        "sin conexión"
+      ]
+    }
+  },
+  {
+    "id": "DOC-008",
+    "descripcion_semantica": "En el proyecto ficticio portal_clientes, una prueba académica en Android detectó un bucle de acceso después de cambiar la contraseña. Para reproducirlo, se iniciaba sesión en el dispositivo, se modificaba la contraseña desde otro cliente de prueba y se intentaba volver al panel móvil. Se esperaba solicitar un nuevo login y permitir el ingreso con la contraseña actualizada; el resultado real alternaba entre la pantalla de autenticación y el mensaje de sesión vencida. El escenario sintético mostró que la aplicación intentaba renovar tokens anteriores invalidados por el cambio. La solución verificada eliminó esos tokens y el estado de renovación pendiente, solicitando una autenticación nueva. Las pruebas confirmaron que el usuario podía ingresar una sola vez y navegar sin repetir el ciclo.",
+    "metadatos": {
+      "proyecto": "portal_clientes",
+      "plataforma": "android",
+      "modulo": "autenticacion",
+      "activo": true,
+      "defect_id": "DEF-1008",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "login",
+        "acceso",
+        "sesión vencida",
+        "bucle"
+      ]
+    }
+  },
+  {
+    "id": "DOC-009",
+    "descripcion_semantica": "En el proyecto ficticio portal_clientes, un escenario académico de recuperación de contraseña en iOS detectó que el enlace abría el navegador y no retornaba correctamente a la aplicación. Se reproducía solicitando un enlace de prueba, abriéndolo desde el correo simulado y completando el cambio de contraseña. Se esperaba volver al formulario de acceso móvil; el resultado real quedaba en una página web sin continuidad de navegación. La revisión identificó una asociación incompleta entre el dominio y las rutas admitidas por los universal links. La solución verificada corrigió esa configuración y el manejador del deep link de retorno, conservando el contexto de recuperación. Las pruebas con la aplicación abierta y cerrada confirmaron el regreso al acceso, por lo que el defecto sintético quedó cerrado.",
+    "metadatos": {
+      "proyecto": "portal_clientes",
+      "plataforma": "ios",
+      "modulo": "autenticacion",
+      "activo": true,
+      "defect_id": "DEF-1009",
+      "estado_defecto": "closed",
+      "tags_regionales": [
+        "recuperar contraseña",
+        "enlace",
+        "deep link",
+        "acceso"
+      ]
+    }
+  },
+  {
+    "id": "DOC-010",
+    "descripcion_semantica": "En el proyecto ficticio portal_clientes, una prueba académica de adjuntos web detectó fallos al cargar archivos PDF con espacios, tildes o caracteres especiales en el nombre. Para reproducirlo, se abría un formulario, se seleccionaba un archivo llamado resumen de gestión.pdf y se enviaba como evidencia de prueba. Se esperaba guardar el adjunto y mostrar su nombre original; el resultado real era un rechazo de la carga o un nombre truncado. En el caso sintético, el cliente concatenaba el nombre sin codificación adecuada y armaba incorrectamente el cuerpo de la solicitud. La solución verificada utilizó envío multipart, respetó la codificación del nombre y dejó al cliente construir los límites del contenido. Las pruebas con nombres variados confirmaron cargas completas y nombres legibles.",
+    "metadatos": {
+      "proyecto": "portal_clientes",
+      "platform": "web",
+      "modulo": "adjuntos",
+      "activo": true,
+      "defect_id": "DEF-1010",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "adjunto",
+        "archivo",
+        "pdf",
+        "carga",
+        "nombre de archivo"
+      ]
+    }
+  },
+  {
+    "id": "DOC-011",
+    "descripcion_semantica": "En el proyecto ficticio banca_movil, una prueba académica de transferencias Android mostró que un doble toque rápido en Confirmar enviaba solicitudes duplicadas. Se reproducía preparando una operación con saldos simulados, introduciendo latencia de red y pulsando dos veces antes de recibir respuesta. Se esperaba registrar una única transferencia de prueba; el resultado real generaba dos solicitudes para la misma intención. No se utilizó dinero real: todo el escenario operaba con datos sintéticos. La solución verificada asignó una clave de idempotencia estable a la operación y bloqueó temporalmente el botón mientras el envío estaba pendiente. El servicio simulado devolvía el mismo resultado ante reintentos. Las pruebas con doble toque y respuestas demoradas confirmaron una sola operación, permitiendo cerrar el defecto.",
+    "metadatos": {
+      "proyecto": "banca_movil",
+      "plataforma": "android",
+      "modulo": "transferencias",
+      "activo": true,
+      "defect_id": "DEF-1011",
+      "estado_defecto": "closed",
+      "tags_regionales": [
+        "transferencia duplicada",
+        "doble toque",
+        "confirmar",
+        "operación repetida"
+      ]
+    }
+  },
+  {
+    "id": "DOC-012",
+    "descripcion_semantica": "En el proyecto ficticio banca_movil, un escenario académico de reportes web detectó fechas desplazadas en la exportación de movimientos cercanos a medianoche. Para reproducirlo, se cargaban operaciones sintéticas con timestamps UTC, se elegía una zona horaria diferente y se exportaba el mismo período mostrado en pantalla. Se esperaba que el reporte coincidiera con las fechas locales de la consulta; el resultado real ubicaba algunos movimientos en el día anterior o posterior. La causa validada era interpretar timestamps sin zona y aplicar conversiones inconsistentes. La solución verificada normalizó los instantes en UTC y convirtió a la zona correspondiente al presentar el reporte y delimitar el período. Las pruebas en distintas zonas confirmaron fechas y selección de movimientos coherentes entre pantalla y exportación.",
+    "metadatos": {
+      "proyecto": "banca_movil",
+      "plataforma": "web",
+      "modulo": "reportes",
+      "activo": "true",
+      "defect_id": "DEF-1012",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "movimientos",
+        "reporte",
+        "fecha incorrecta",
+        "zona horaria",
+        "exportación"
+      ]
+    }
+  },
+  {
+    "id": "DOC-013",
+    "descripcion_semantica": "En el proyecto ficticio banca_movil, una prueba académica de notificaciones Android detectó varias alertas idénticas para una misma operación simulada. Para reproducirlo, se generaba un evento, se interrumpía la conexión durante su recepción y se restablecía la red para provocar una entrega repetida. Se esperaba un único aviso de la operación; el resultado real mostraba varias notificaciones con el mismo contenido porque cada recepción se trataba como un evento nuevo. La solución verificada en este escenario sintético deduplicó entregas mediante un identificador estable del evento, registrando su procesamiento antes de publicar la alerta. Las pruebas de reconexión confirmaron un solo aviso por identificador y conservaron notificaciones separadas para operaciones diferentes, aunque sus mensajes fueran parecidos.",
+    "metadatos": {
+      "proyecto": "banca_movil",
+      "plataforma": "android",
+      "modulo": "notificaciones",
+      "activo": true,
+      "defect_id": "DEF-1013",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "aviso repetido",
+        "notificación duplicada",
+        "alerta",
+        "evento"
+      ]
+    }
+  },
+  {
+    "id": "DOC-014",
+    "descripcion_semantica": "En el proyecto ficticio gestion_interna, un antecedente académico de reportes desktop describía importes incorrectos al abrir una exportación antigua en Excel. Se reproducía exportando valores sintéticos con decimales y usando una configuración regional donde la coma era separador decimal. Se esperaba conservar los importes numéricos; el resultado real dividía columnas o interpretaba cantidades como texto por mezclar comas decimales y delimitadores. En aquel escenario se verificó un workaround que seleccionaba explícitamente el delimitador y la configuración regional durante la importación. Más tarde se reemplazó el exportador por uno que genera celdas numéricas con formato definido. El documento está inactivo y el ticket cerrado: el procedimiento manual quedó obsoleto y se conserva únicamente como explicación histórica, sin recomendarlo para exportaciones actuales.",
+    "metadatos": {
+      "proyecto": "gestion_interna",
+      "plataforma": "desktop",
+      "modulo": "reportes",
+      "activo": false,
+      "defect_id": "DEF-1014",
+      "estado_defecto": "closed",
+      "tags_regionales": [
+        "excel",
+        "exportación",
+        "decimales",
+        "comas",
+        "reporte"
+      ]
+    }
+  },
+  {
+    "id": "DOC-015",
+    "descripcion_semantica": "En el proyecto ficticio gestion_interna, una prueba académica de formularios desktop detectó que el botón Guardar no respondía después de corregir un campo inválido. Para reproducirlo, se completaba un formulario sintético, se enviaba con un valor obligatorio incorrecto, se corregía el dato y se intentaba guardar nuevamente. Se esperaba que la validación actualizada habilitara el envío; el resultado real mantenía el botón bloqueado sin iniciar ninguna solicitud. La revisión identificó un estado de error persistente que no se recalculaba al editar el campo. La solución verificada restauró el estado del formulario, limpió el error corregido y volvió a habilitar el envío cuando todos los valores eran válidos. Las pruebas confirmaron el guardado posterior y mantuvieron el bloqueo cuando todavía existían errores.",
+    "metadatos": {
+      "proyecto": "gestion_interna",
+      "plataforma": "desktop",
+      "modulo": "formularios",
+      "activo": true,
+      "defect_id": "DEF-1015",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "guardar",
+        "formulario",
+        "validación",
+        "botón bloqueado"
+      ]
+    }
+  },
+  {
+    "id": "DOC-001",
+    "descripcion_semantica": "En una aplicación Android ficticia de tienda_web, el ensayo de compras detectó que ingresar a la cesta cerraba el proceso cuando uno de los artículos quedaba sin existencias. El evaluador añadía un producto, cambiaba su disponibilidad a agotado antes de confirmar y abría el resumen de compra. Debía aparecer una indicación de artículo agotado junto con la opción de quitarlo; en cambio, el procesamiento del inventario vacío provocaba una terminación inesperada. La corrección académica comprobó el stock recibido antes de operar con cantidades, conservó una representación válida del producto no disponible y mostró un aviso comprensible. Al repetir el recorrido, la cesta siguió abierta y permitió retirar ese artículo y continuar con otros productos. Este antecedente describe únicamente una solución sintética verificada en el escenario de prueba.",
+    "metadatos": {
+      "proyecto": "tienda_web",
+      "plataforma": "android",
+      "modulo": "carrito",
+      "activo": true,
+      "defect_id": "DEF-1001",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "carrito",
+        "cesta",
+        "compra",
+        "cierre inesperado"
+      ]
+    }
+  },
+  {
+    "id": "DOC-DUP-002",
+    "descripcion_semantica": "En el portal_clientes académico, una sesión web renovada podía seguir produciendo respuestas 401 al entrar al panel. La prueba comenzaba con un acceso correcto, esperaba el vencimiento del token y solicitaba una renovación; luego intentaba nuevamente el ingreso. Aunque las credenciales eran válidas y el servidor entregaba una sesión nueva, la siguiente petición protegida utilizaba todavía la autorización anterior y regresaba a la pantalla de login. Se esperaba navegar directamente al área del cliente. El diagnóstico sintético encontró una actualización tardía del encabezado HTTP. La solución descartó el token caducado y sustituyó la autorización antes de habilitar otras solicitudes. Las repeticiones del ensayo comprobaron acceso y navegación normales después de renovar la sesión, sin nuevos rechazos 401 causados por el token antiguo.",
+    "metadatos": {
+      "proyecto": "portal_clientes",
+      "plataforma": "web",
+      "modulo": "autenticacion",
+      "activo": true,
+      "defect_id": "DEF-1002",
+      "estado_defecto": "closed",
+      "tags_regionales": [
+        "login",
+        "acceso",
+        "ingreso",
+        "sesión"
+      ]
+    }
+  },
+  {
+    "id": "DOC-DUP-015",
+    "descripcion_semantica": "En gestion_interna, un formulario desktop ficticio conservaba deshabilitada la acción Guardar aun después de reparar un dato rechazado. El recorrido académico cargaba los campos, introducía un valor obligatorio inválido y enviaba el formulario para activar el error. A continuación se corregía ese valor y se pulsaba nuevamente el botón. El comportamiento esperado era habilitar el envío tras una validación satisfactoria, pero la interfaz retenía un bloqueo anterior y no iniciaba ninguna petición. La investigación identificó que el estado de error no se recalculaba al cambiar el campo. La solución sintética restableció el estado del formulario, retiró el mensaje correspondiente al dato corregido y habilitó Guardar cuando el conjunto completo era válido. Las pruebas posteriores permitieron guardar tras la corrección y conservaron el bloqueo para errores todavía presentes.",
+    "metadatos": {
+      "proyecto": "gestion_interna",
+      "plataforma": "desktop",
+      "modulo": "formularios",
+      "activo": true,
+      "defect_id": "DEF-1015",
+      "estado_defecto": "resolved",
+      "tags_regionales": [
+        "guardar",
+        "formulario",
+        "validación",
+        "botón bloqueado"
+      ]
+    }
+  }
+]

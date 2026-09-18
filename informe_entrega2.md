@@ -350,7 +350,7 @@ Verificación local completada sin llamadas a la API.
 Código de salida: 0
 ```
 
-Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4 se documenta a continuación; B.5 y B.6 permanecen pendientes.
+Ambas ejecuciones terminaron con código `0`. La prueba demuestra una actualización incremental de metadatos recuperable inmediatamente y su restauración, pero no constituye una prueba de concurrencia, bloqueo distribuido o transacción multirregistro. B.4 y B.5 se documentan a continuación; B.6 permanece pendiente.
 
 ### B.4 — Búsqueda híbrida con filtros nativos
 
@@ -414,4 +414,92 @@ Filtro nativo: {"$and": [{"plataforma": {"$eq": "ios"}}, {"activo": {"$eq": true
 Código de salida: 0
 ```
 
-Las tres ejecuciones terminaron con código `0`. La prueba demuestra búsqueda semántica combinada con filtrado nativo por metadatos y que un antecedente inactivo queda excluido antes de formar los resultados. No demuestra todavía un umbral de aceptación, calidad universal de recuperación, ETL, purga ni Killer Queries. B.5 y B.6 continúan pendientes.
+Las tres ejecuciones terminaron con código `0`. La prueba demuestra búsqueda semántica combinada con filtrado nativo por metadatos y que un antecedente inactivo queda excluido antes de formar los resultados. No demuestra todavía un umbral de aceptación, calidad universal de recuperación, ETL, purga ni Killer Queries. El ETL y la purga se documentan en B.5; B.6 continúa pendiente.
+
+### B.5 — ETL y purga semántica
+
+#### Dataset de prueba controlado
+
+`base_conocimiento.json` permanece como fuente de verdad limpia con 15 documentos. Para no corromper el corpus utilizado en A.3–B.4, se creó `base_conocimiento_etl_sucia.json`: contiene 18 registros, compuestos por los 15 documentos conceptuales originales, dos inconsistencias estructurales y tres paráfrasis casi duplicadas. No contiene tickets externos ni datos internos reales.
+
+#### Extracción y normalización
+
+El ETL extrae el JSON en UTF-8 y aplica estas dos correcciones reales; las posiciones se cuentan desde cero:
+
+| Posición | Documento | Inconsistencia | Normalización |
+| -------: | --------- | -------------- | ------------- |
+| 9 | `DOC-010` | clave `platform` | se renombró a `plataforma` |
+| 11 | `DOC-012` | `activo` almacenado como string `"true"` | se convirtió al booleano real `true` |
+
+El archivo sucio no fue sobrescrito. Después de normalizar, el ETL valida estructura, claves, plataformas, booleanos y campos obligatorios. Los strings booleanos no reconocidos se rechazan en lugar de convertirse silenciosamente.
+
+#### Colisión de IDs
+
+La paráfrasis del carrito reutilizaba deliberadamente `DOC-001`. El algoritmo conservó la primera aparición canónica, reasignó determinísticamente la segunda a `DOC-DUP-001`, registró la colisión y dejó todos los IDs únicos antes de vectorizar. El mecanismo es general: busca un identificador libre y agrega un sufijo determinístico si el reemplazo ya está ocupado; no utiliza un `if` exclusivo para `DOC-001`.
+
+#### Embeddings y criterio de comparación
+
+Se utilizó `gemini-embedding-001`, dimensión 768 y tarea `RETRIEVAL_DOCUMENT` para los 18 textos normalizados. Los vectores se convirtieron a `float32`, se validaron en cantidad, dimensión, valores finitos y ausencia de vectores nulos, y se normalizaron antes de comparar. No se persistieron embeddings ni se crearon índices FAISS o bases ChromaDB.
+
+```python
+distancia_coseno = 1.0 - similitud_coseno
+```
+
+Un par solamente puede purgarse si cumple simultáneamente distancia coseno menor o igual al umbral, mismo proyecto, misma plataforma y mismo módulo. Esto evita eliminar documentos por compartir vocabulario general pero pertenecer a contextos distintos. Se priorizan los IDs canónicos `DOC-001` a `DOC-015`; si esa regla no alcanza, se conserva el primero según el orden normalizado. Cada eliminación se compara directamente con el documento conservado y registra ambos IDs, scores, contexto y motivo.
+
+#### Umbral justificado
+
+El umbral adoptado para esta prueba fue:
+
+```text
+distancia coseno <= 0.15
+```
+
+equivalente a:
+
+```text
+similitud coseno >= 0.85
+```
+
+Las tres paráfrasis preparadas quedaron muy por debajo del límite, con distancias entre `0.042900` y `0.048730` y similitudes entre `0.951270` y `0.957100`. Ningún otro par que cumpliera las condiciones de proyecto, plataforma y módulo quedó dentro del umbral. Se eliminaron exactamente los tres duplicados previstos y el corpus resultante coincidió completamente con los 15 documentos de `base_conocimiento.json`.
+
+El umbral fue validado sobre este corpus académico controlado; no garantiza rendimiento universal y debería recalibrarse con datos reales más variados antes de producción. La salida literal conserva la denominación «Umbral preliminar» del script.
+
+#### Resultado de la purga
+
+| ID conservado | ID eliminado | Similitud coseno | Distancia coseno | Proyecto | Plataforma | Módulo |
+| ------------- | ------------ | ---------------: | ---------------: | -------- | ---------- | ------ |
+| `DOC-001` | `DOC-DUP-001` | 0.951270 | 0.048730 | `tienda_web` | `android` | `carrito` |
+| `DOC-002` | `DOC-DUP-002` | 0.957100 | 0.042900 | `portal_clientes` | `web` | `autenticacion` |
+| `DOC-015` | `DOC-DUP-015` | 0.954292 | 0.045708 | `gestion_interna` | `desktop` | `formularios` |
+
+Se pasó de 18 documentos iniciales a 15 finales, con dos correcciones estructurales, una colisión de ID resuelta y tres duplicados semánticos eliminados. La comparación estricta en memoria confirmó los mismos 15 IDs, documentos y metadatos que la fuente limpia, sin depender del formato o indentación del JSON. No se sobrescribió `base_conocimiento.json` ni se generó un archivo limpio duplicado.
+
+#### Por qué `SELECT DISTINCT` no alcanza
+
+`SELECT DISTINCT` elimina filas con valores iguales. Tras resolver la colisión, las paráfrasis tenían IDs y textos diferentes y utilizaban sinónimos como `carrito/cesta`, `producto/artículo` o formulaciones distintas para una sesión vencida. Aunque representaban el mismo incidente, no eran duplicados textuales: fue necesario comparar significado mediante embeddings y distancia coseno.
+
+#### Evidencia real
+
+```text
+> python .\etl_purga.py --threshold 0.15
+Datos académicos sintéticos; no son tickets externos.
+Documentos extraídos: 18
+Correcciones estructurales: 2
+{"posicion": 9, "id": "DOC-010", "correccion": "platform -> plataforma"}
+{"posicion": 11, "id": "DOC-012", "correccion": "activo: string -> bool"}
+Colisiones resueltas: 1
+{"id_original": "DOC-001", "id_nuevo": "DOC-DUP-001", "motivo": "ID repetido; se conserva la primera aparición"}
+Modelo: gemini-embedding-001; dimensión: 768
+Umbral preliminar: distancia <= 0.15; similitud >= 0.85
+{"id_conservado": "DOC-001", "id_eliminado": "DOC-DUP-001", "similitud_coseno": 0.951269805431366, "distancia_coseno": 0.04873019456863403, "proyecto": "tienda_web", "plataforma": "android", "modulo": "carrito", "motivo": "Distancia dentro del umbral y mismo proyecto/plataforma/módulo; prioridad canónica"}
+{"id_conservado": "DOC-002", "id_eliminado": "DOC-DUP-002", "similitud_coseno": 0.9571004509925842, "distancia_coseno": 0.04289954900741577, "proyecto": "portal_clientes", "plataforma": "web", "modulo": "autenticacion", "motivo": "Distancia dentro del umbral y mismo proyecto/plataforma/módulo; prioridad canónica"}
+{"id_conservado": "DOC-015", "id_eliminado": "DOC-DUP-015", "similitud_coseno": 0.9542924165725708, "distancia_coseno": 0.0457075834274292, "proyecto": "gestion_interna", "plataforma": "desktop", "modulo": "formularios", "motivo": "Distancia dentro del umbral y mismo proyecto/plataforma/módulo; prioridad canónica"}
+Documentos finales: 15
+El ETL reconstruyó la fuente limpia: coincidencia completa con base_conocimiento.json.
+Código de salida: 0
+```
+
+PowerShell informó aparte `$LASTEXITCODE = 0`.
+
+La prueba demuestra normalización, resolución de IDs y purga semántica sobre un conjunto controlado. No demuestra todavía ingestión automática desde sistemas externos, calibración con un corpus productivo ni las Killer Queries de B.6, que continúa pendiente.
