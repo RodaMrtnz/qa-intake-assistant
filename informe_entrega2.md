@@ -517,3 +517,71 @@ Se evaluaron tres consultas trampa sobre el corpus académico sintético: jerga 
 La evidencia detallada, vecinos, distancias y salida literal están en [resultados_killer_queries.md](resultados_killer_queries.md). Se utilizaron cuatro embeddings de consulta y cero documentales, sin escrituras sobre ChromaDB. El `where` productivo siguió siendo nativo por plataforma y `activo=true`; el diagnóstico sin filtros del segundo caso solo evidenció el riesgo y no produjo la respuesta productiva. No hubo postfiltrado manual de metadatos.
 
 El umbral inclusivo de similitud `>= 0.70` aceptó el antecedente correcto y permitió abstenerse en los otros dos casos. Todavía se denomina preliminar hasta la justificación final de C.2; estas pruebas sobre un corpus pequeño no garantizan calidad universal. Los resultados no confirman tickets externos.
+
+## Parte C — Coherencia e integración
+
+### C.1 — Cadena de coherencia con la Entrega 1
+
+La Entrega 1 documentó un sistema más amplio que su prototipo: el flujo B.6 y el cierre C.5 de `informe.md` distinguen la extracción implementada de las consultas y acciones futuras. La Entrega 2 incorpora recuperación vectorial sobre antecedentes académicos sintéticos; no convierte esos antecedentes en tickets corporativos ni implementa todas las fuentes previstas en el PEAS.
+
+| Elemento de la Entrega 1 | Evidencia original | Implementación en la Entrega 2 | Alcance o limitación actual |
+| ------------------------ | ------------------ | ------------------------------ | --------------------------- |
+| Base de Conocimiento del PEAS | A.3 de `informe.md` proyecta SQL de defectos e interacciones, catálogos oficiales de productos, módulos, plataformas y versiones, reglas de severidad/prioridad, directorio de equipos y responsables, documentación funcional/técnica, historial de defectos y soluciones y una futura base vectorial para RAG. | Se implementó únicamente la porción vectorial: 15 antecedentes sintéticos en `base_conocimiento.json` como fuente de verdad, FAISS y ChromaDB persistentes, metadatos y vigencia, ETL y purga semántica sobre un dataset controlado. `proyecto` identifica escenarios ficticios, no un catálogo oficial. | No existen integraciones implementadas con SQL de negocio o Jira, reglas oficiales, directorio real ni documentación corporativa real. El almacenamiento interno de ChromaDB no equivale al esquema SQL de defectos e interacciones proyectado en B.5.3 de la Entrega 1. |
+| `platform` / plataforma de la matriz | B.3 de `informe.md` incluye `platform` en las intenciones de reporte, búsqueda y orientación; `DefectExtraction` en `schemas.py` valida sus valores. | El corpus almacena `plataforma`; `buscar_defectos` la normaliza y envía el filtro nativo `plataforma=<valor>` en `where`. | No hay conversión automática desde la extracción. El contrato admite `other` y `null`, pero la búsqueda solo acepta `web`, `android`, `ios` y `desktop`; el futuro orquestador deberá pedir aclaración o abstenerse ante valores no admitidos, sin inventar una plataforma. |
+| `module` | La matriz B.3 y el contrato Pydantic contemplan el módulo extraído por el LLM. | Se almacena como `modulo`; el ETL lo utiliza junto con proyecto y plataforma para limitar la comparación de duplicados. | Está disponible como metadato, pero `vector_db.py search` no lo utiliza como filtro obligatorio de recuperación. |
+| `defect_id` | La matriz lo incluye para búsqueda y actualización. `schemas.py` normaliza a mayúsculas y valida el formato `DEF-` seguido de dígitos. | Se almacena como metadato sintético y se muestra en los resultados de búsqueda. | No se utiliza actualmente como filtro de búsqueda semántica. Validar su formato no confirma la existencia de un ticket externo ni autoriza su modificación. |
+| `app_version` y `error_code` | B.3 incluye versión para reportes y código de error para reportes/búsquedas; ambos son campos opcionales del contrato. | Algunos documentos conservan referencias narrativas a versiones o actualizaciones y códigos, como el 401 de `DOC-002`. | No están modelados como metadatos duros independientes en ChromaDB. Las referencias genéricas a versiones no constituyen un catálogo de versiones exactas; Pydantic tampoco valida la existencia real de una versión o el significado de un código. |
+| `summary`, `keywords`, pasos y resultados | La matriz y `DefectExtraction` incluyen `summary`, `keywords`, `steps_to_reproduce`, `expected_result` y `actual_result` según la intención. | `descripcion_semantica` contiene contexto, reproducción, resultados y solución; puede contrastarse con el contenido semántico de un reporte mediante embeddings. | No existe un constructor automático de `query_semantica` a partir de estos campos. `keywords` no se convierte automáticamente en `tags_regionales`, que es información auxiliar del corpus. |
+| Intención, cambios solicitados y faltantes | B.3 define cinco intenciones; `requested_changes` describe actualizaciones solicitadas y `missing_fields` registra información faltante. El flujo B.6 reserva decisiones y acciones al backend. | La búsqueda y sus pruebas son herramientas separadas de solo lectura; no ejecutan las acciones de la matriz. | Falta el despacho integrado por intención y la gestión de aclaraciones. No se implementaron permisos, escritura de tickets ni ejecución de `requested_changes`. |
+| Vigencia `activo` | El PEAS proyecta historial y fuentes confiables; `activo` no es un campo extraído por el contrato de la Entrega 1. | Es un booleano de vigencia de la Base de Conocimiento, establecido en el corpus y aplicado obligatoriamente mediante `activo=true`; `solo_activos=False` se rechaza. | No es una afirmación inventada por el LLM ni equivale al estado del defecto. Un antecedente resuelto puede seguir vigente; uno inactivo no debe recomendarse. |
+| Parámetros extraídos desde `free_text` | `app.py` recibe texto por terminal o mediante `analyze_report`, lo envía a Gemini con el System Prompt y valida el JSON con `DefectExtraction.model_validate_json`. B.6 y C.5 de `informe.md` describen ese alcance. | Existen tanto la capa de interpretación/validación como la de recuperación: la plataforma validada puede convertirse en `plataforma`, y el contenido del reporte en `query_semantica`, para recuperar antecedentes activos. | Las dos capas todavía no están conectadas automáticamente en un único flujo. El endpoint web documentado en la Entrega 1 no está implementado por `app.py`; tampoco existe una generación de respuesta RAG integrada. |
+
+Recorrido previsto, con las conexiones entre extracción y búsqueda todavía pendientes:
+
+```text
+free_text → Gemini con System Prompt → DefectExtraction validado por Pydantic → construcción de query_semantica y where → ChromaDB con plataforma y activo=true → candidatos aceptados por umbral
+```
+
+La validación asegura el contrato, no la verdad de todos los datos extraídos. El backend futuro deberá controlar los filtros y la abstención; este flujo no presenta una generación de respuesta final como componente ya implementado.
+
+### C.2 — Umbral de aceptación
+
+Se adopta para este corpus académico de 15 documentos el threshold inclusivo:
+
+```text
+similitud coseno >= 0.70
+```
+
+La evidencia siguiente conserva los valores exactos y distingue ejecuciones. Las decisiones de A.4/B.4 indican qué correspondería al aplicar este criterio a los scores documentados; esos scripts no aplicaron allí el umbral de aceptación.
+
+| Evidencia | Similitud | Decisión |
+| --------- | --------: | -------- |
+| Carrito Android, A.4 (FAISS), `DOC-001` | 0.801476 | aceptar con el criterio adoptado |
+| Carrito Android, B.4 (ChromaDB), `DOC-001` | 0.801475 | aceptar con el criterio adoptado |
+| Login 401, A.4 (FAISS), `DOC-002` | 0.802261 | aceptar con el criterio adoptado |
+| Login 401, B.4 (ChromaDB), `DOC-002` | 0.802260 | aceptar con el criterio adoptado |
+| Botón Guardar, A.4 (FAISS), `DOC-015` | 0.799975 | aceptar con el criterio adoptado |
+| Jerga `changuito/mercadería`, B.6, `DOC-001` | 0.773748 | aceptado efectivamente |
+| Mejor vecino activo para Face ID, B.6, `DOC-009` | 0.622149 | rechazado efectivamente; abstención |
+| Fuera del catálogo, B.6, `DOC-015` | 0.537786 | rechazado efectivamente; abstención |
+
+Las pequeñas diferencias entre FAISS y ChromaDB corresponden a los resultados registrados y no se unifican como una sola medición. La consulta Face ID de B.4 fue distinta y obtuvo `0.625396` para `DOC-009`; también queda bajo 0.70, pero no debe confundirse con el `0.622149` de B.6. `DOC-009` es un vecino activo de recuperación de contraseña, no una solución validada para Face ID. El score crudo `0.784778` de `DOC-003` en B.6 tampoco habilita recomendarlo: `activo=false` lo excluye antes de la aceptación numérica.
+
+ChromaDB puede devolver algún vecino cuando el subconjunto permitido contiene documentos, incluso si ninguno responde a la consulta; un filtro también puede dejar el conjunto vacío. Ser el vecino más cercano no significa ser una respuesta válida. Si ningún resultado alcanza 0.70, la respuesta controlada es exactamente:
+
+```text
+No tengo esa información.
+```
+
+Forzar el vecino más cercano por debajo del umbral sería una recomendación sin respaldo y puede inducir una alucinación. El criterio separó el antecedente correcto expresado con jerga de las alternativas activas para Face ID y del caso fuera de catálogo. Es adecuado como decisión para este conjunto controlado, no como garantía universal: antes de producción debe recalibrarse con más datos, consultas reales, positivos y negativos etiquetados y análisis de falsos positivos y falsos negativos. Un threshold alto puede omitir antecedentes útiles; uno bajo puede aceptar coincidencias irrelevantes.
+
+Los dos umbrales resuelven problemas diferentes: **0.70 de similitud** acepta candidatos de búsqueda; **0.15 de distancia**, equivalente a **0.85 de similitud**, identifica casi duplicados únicamente en el ETL. B.5 eliminó las tres paráfrasis con similitudes `0.951270`, `0.957100` y `0.954292`, conservando íntegramente la fuente limpia; ese criterio de purga no reemplaza al umbral de recuperación.
+
+`killer_queries.py` ya aplica realmente 0.70 mediante `aplicar_umbral` y produjo la abstención documentada. `vector_db.py search` muestra vecinos y scores como herramienta de inspección de B.4, pero no aplica por sí solo este threshold ni presenta una respuesta final al usuario. El umbral tampoco está integrado en `app.py`; las referencias previas a «preliminar» describen las etapas anteriores a esta adopción para el corpus académico.
+
+### C.3 — Cierre: dónde se conecta
+
+La búsqueda híbrida devuelve estructuras de Python con documentos, metadatos, distancia y similitud; falta un orquestador RAG que conecte `DefectExtraction` con esa recuperación.
+Deberá construir la consulta y el `where`, aplicar el umbral y entregar solamente antecedentes aceptados al modelo generador para producir una respuesta trazable al usuario.
+LangChain puede utilizarse en una unidad futura, pero no está implementado actualmente ni forma parte de las dependencias declaradas.
+El LLM no debe consultar ni modificar directamente la base ni presentar como oficial un dato no recuperado; el backend deberá controlar esas operaciones.
