@@ -3,3 +3,4 @@ python-dotenv
 tiktoken
 google-genai
 httpx
+numpy>=1.26,<3
