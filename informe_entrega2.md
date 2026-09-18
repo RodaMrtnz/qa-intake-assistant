@@ -120,3 +120,57 @@ El script comprueba los tres scores aproximados con `np.isclose`, usando toleran
 El umbral **0,70** es preliminar y exclusivo de esta demostración 2D; deberá recalibrarse con embeddings reales y Killer Queries.
 Si ningún resultado supera el umbral, el sistema debe responder **«No tengo esa información.»**, sin forzar el vecino más cercano.
 `DOC-003` es cercano semánticamente, pero `activo=false` impide recomendarlo: esto anticipa el filtro obligatorio **`activo=true`** en B.4, que todavía no se implementó.
+
+### A.3 — Base de conocimiento documental
+
+`base_conocimiento.json` contiene 15 antecedentes sintéticos y creíbles de QA, con problemas históricos y soluciones verificadas dentro de escenarios académicos ficticios; no son tickets reales. Cada documento separa `descripcion_semantica`, que se vectoriza, de `metadatos`, destinados a futuros filtros duros.
+
+Según la Regla del Arquitecto, lo narrativo queda en el texto y los campos de filtrado en metadatos. `descripcion_semantica` conserva contexto, reproducción, resultado esperado, resultado real y solución. `proyecto`, `plataforma`, `modulo`, `activo`, `defect_id` y `estado_defecto` son metadatos; `tags_regionales` conserva sinónimos y jerga auxiliar. `activo` representa la vigencia del conocimiento, no el estado abierto o cerrado del ticket: una solución de un defecto resuelto puede seguir siendo válida.
+
+| Dimensión | Distribución |
+| --- | --- |
+| Proyecto | 5 `tienda_web`, 4 `portal_clientes`, 4 `banca_movil`, 2 `gestion_interna` |
+| Plataforma | 5 `android`, 5 `web`, 3 `ios` (iOS), 2 `desktop` |
+| Vigencia | 12 activos y 3 inactivos: `DOC-003`, `DOC-005` y `DOC-014` |
+
+### A.4 — Índice FAISS persistente
+
+`pipeline_vectorial.py` utiliza el modelo `gemini-embedding-001`, leído de `GEMINI_EMBEDDING_MODEL`, con dimensión 768. El corpus usa `RETRIEVAL_DOCUMENT` y las consultas usan `RETRIEVAL_QUERY`. Se valida cantidad, dimensión, valores finitos y ausencia de vectores cero; los embeddings se convierten a `float32` y se normalizan mediante `faiss.normalize_L2`.
+
+El índice es `IndexFlatIP`: con vectores normalizados, el producto interno equivale a **similitud coseno**, donde un valor mayor indica mayor afinidad. Se reporta por separado **`distancia_coseno = 1 - similitud_coseno`**; el producto interno no se denomina distancia.
+
+La persistencia usa `faiss.write_index` y la recarga usa `faiss.read_index`. El manifiesto complementario incluye versión del formato, modelo, dimensión, tipo de índice, métrica, IDs ordenados, cantidad de documentos y SHA-256 del contenido completo del corpus. Al recargar se comprueban esos datos y las propiedades del índice; si dejan de coincidir, o falta uno de los archivos, el modo normal informa el motivo y regenera de forma controlada. `--load-only` rechaza una persistencia inválida sin regenerar ni conectarse a la API.
+
+El índice `faiss_index/qa_knowledge.index` y el manifiesto `faiss_index/qa_knowledge.meta.json` se escriben primero en archivos temporales del mismo directorio y se reemplazan mediante `os.replace`. Son artefactos regenerables ignorados por Git; **`base_conocimiento.json` es la fuente de verdad versionada** del corpus sintético. Las posiciones FAISS se corresponden con el orden documental validado por el manifiesto.
+
+#### Resultados de la ejecución real
+
+Se ejecutó búsqueda semántica pura top-3 para las tres consultas de prueba. Los resultados no confirman la existencia de tickets fuera del corpus sintético.
+
+| Consulta | Ranking | Documento | Activo | Similitud coseno | Distancia coseno |
+| --- | ---: | --- | --- | ---: | ---: |
+| Cierre al abrir la cesta después de agregar un artículo agotado | 1 | DOC-001 | true | 0.801476 | 0.198524 |
+| Cierre al abrir la cesta después de agregar un artículo agotado | 2 | DOC-004 | true | 0.689533 | 0.310467 |
+| Cierre al abrir la cesta después de agregar un artículo agotado | 3 | DOC-007 | true | 0.670791 | 0.329209 |
+| Login 401 después de renovar una sesión vencida | 1 | DOC-002 | true | 0.802261 | 0.197739 |
+| Login 401 después de renovar una sesión vencida | 2 | DOC-008 | true | 0.721380 | 0.278620 |
+| Login 401 después de renovar una sesión vencida | 3 | DOC-009 | true | 0.631003 | 0.368997 |
+| Botón Guardar bloqueado después de corregir un campo inválido | 1 | DOC-015 | true | 0.799975 | 0.200025 |
+| Botón Guardar bloqueado después de corregir un campo inválido | 2 | DOC-003 | false | 0.643128 | 0.356872 |
+| Botón Guardar bloqueado después de corregir un campo inválido | 3 | DOC-002 | true | 0.634907 | 0.365093 |
+
+En las tres consultas el documento esperado quedó primero, con scores top-1 de `0.801476`, `0.802261` y `0.799975`. Los resultados secundarios son semánticamente cercanos, pero no necesariamente aplicables. `DOC-003` apareció segundo en la tercera consulta pese a estar inactivo: no es un fallo de A.4, que realiza búsqueda semántica pura sin filtrar vigencia. El caso demuestra por qué B.4 necesitará filtrar `activo=true` dentro de la consulta de ChromaDB, no mediante post-filtering de los vecinos ya recuperados.
+
+#### Evidencia de persistencia
+
+```text
+Primera ejecución:
+Índice FAISS construido y persistido. Embeddings documentales generados: 15.
+
+Recarga local:
+Dimensión: 768; ntotal: 15; modelo: gemini-embedding-001
+SHA-256 del corpus coincidente.
+Recarga local verificada sin llamadas a la API.
+```
+
+Esta evidencia demuestra construcción y recarga para A.4. **A.5 no se presenta como completada**: su prueba destructiva específica se realizará por separado. Tampoco se implementaron ChromaDB ni los componentes de la Parte B.
