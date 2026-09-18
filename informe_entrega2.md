@@ -232,3 +232,71 @@ No se creó `volatile_demo.index`. El índice persistente `qa_knowledge.index` y
 
 En producción, un reinicio elimina cualquier índice que exista solamente en RAM, obligando a reconstruirlo y repitiendo costo, cuota y latencia.
 Con dos servidores, cada memoria es independiente; guardar una copia local reduce regeneraciones, pero para consistencia y concurrencia se necesita almacenamiento compartido o una base vectorial persistente como ChromaDB con una arquitectura adecuada para ese acceso.
+
+## Parte B — ChromaDB, filtrado híbrido y ETL
+
+### B.1 — Migración a ChromaDB
+
+Se utilizó ChromaDB **1.5.9** mediante `chromadb.PersistentClient`, no el cliente volátil. `vector_db.py` obtiene la ruta desde `CHROMA_DB_PATH` y resuelve las rutas relativas respecto de la raíz del proyecto. La colección `qa_intake_knowledge` se configuró con `metadata={"hnsw:space": "cosine"}`; la implementación también verifica que la configuración HNSW efectiva use `space="cosine"`.
+
+Se migraron los mismos 15 documentos de `base_conocimiento.json` mediante una operación `collection.upsert`, no `add`. `upsert` permite repetir la ingesta actualizando los mismos IDs sin duplicarlos. La colección persistente queda en `chroma_db/`, ignorada por Git. `base_conocimiento.json` continúa siendo la fuente de verdad versionada del corpus sintético y permite reconstruir la colección.
+
+#### Función de embeddings personalizada
+
+`GeminiEmbeddingFunction` utiliza `gemini-embedding-001` con dimensión 768. La ingesta mediante `upsert` usa `RETRIEVAL_DOCUMENT`; una futura consulta con `query_texts` utiliza `embed_query` y `RETRIEVAL_QUERY`. Se valida cantidad, dimensión, valores finitos y ausencia de vectores cero; los vectores se convierten a `float32` y se normalizan de forma coherente con A.4.
+
+El cliente Gemini se crea de manera perezosa, únicamente al solicitar embeddings. La configuración persistida de la función se limita al modelo y la dimensión: no contiene la API key. Su reconstrucción obtiene la clave del entorno cuando corresponda, sin guardarla en la base. El modo `verify` obtiene la colección con `embedding_function=None` y utiliza `get/count`, sin crear clientes Gemini ni necesitar una clave para generar embeddings.
+
+#### Transformación documental
+
+| Elemento de `base_conocimiento.json` | Representación en ChromaDB |
+| --- | --- |
+| `id` | ID del registro |
+| `descripcion_semantica` | Documento vectorizado |
+| `proyecto` | Metadato escalar |
+| `plataforma` | Metadato escalar filtrable |
+| `modulo` | Metadato escalar |
+| `activo` | Booleano real y metadato filtrable |
+| `defect_id` | Metadato escalar |
+| `estado_defecto` | Metadato escalar |
+| `tags_regionales` | JSON serializado en `tags_regionales_json` |
+
+`tags_regionales` se serializa mediante `json.dumps(tags, ensure_ascii=False)` porque es una lista auxiliar de sinónimos y jerga, no el filtro duro principal. `activo` no se convierte en texto: B.4 deberá filtrarlo mediante un booleano real. La ingesta rechaza colecciones con métrica, modelo, dimensión, schema o IDs adicionales incompatibles, solicitando una migración explícita; no las elimina silenciosamente.
+
+#### Evidencia real de ingesta y recarga
+
+```text
+> python .\vector_db.py ingest
+Colección: qa_intake_knowledge
+Cliente persistente: directorio configurado en CHROMA_DB_PATH
+Operación: upsert
+Documentos esperados: 15
+Documentos almacenados: 15
+IDs verificados: 15
+Métrica: cosine
+Ingesta persistente verificada.
+Código de salida: 0
+```
+
+```text
+> python .\vector_db.py verify
+Colección persistente recargada.
+Colección: qa_intake_knowledge
+Documentos almacenados: 15
+IDs verificados: 15
+Métrica: cosine
+Verificación local completada sin llamadas a la API.
+Código de salida: 0
+```
+
+`ingest` realizó la llamada de embeddings y persistió los registros. `verify`, ejecutado en otro proceso, recuperó 15 registros sin generar embeddings ni llamar a Gemini. Ambas ejecuciones terminaron con código `0`. Esto prueba la persistencia de la colección, pero todavía no constituye la búsqueda híbrida de B.4.
+
+### B.2 — Los tres límites de FAISS que ChromaDB resuelve
+
+| Límite de FAISS | Cómo se manifiesta en QA Intake Assistant | Cómo lo resuelve ChromaDB |
+| --- | --- | --- |
+| Sin persistencia transaccional o atomicidad | FAISS serializa el índice completo mediante `write_index`, pero ese archivo no constituye por sí mismo una base transaccional. En A.4 se guardan por separado índice y manifiesto, se validan con el hash del corpus y se regenera si quedan incompatibles. Una interrupción entre las escrituras puede dejar un par inconsistente, aunque cada reemplazo individual sea atómico. | ChromaDB administra documentos, embeddings y metadatos dentro de una colección persistente y expone operaciones como `upsert`. Ofrece una capa de almacenamiento más apropiada que un archivo FAISS aislado; esta entrega no demuestra garantías distribuidas ni atomicidad bajo fallos. |
+| Sin filtrado híbrido nativo | FAISS devuelve vecinos por posición y similitud, pero no conoce `plataforma`, `activo`, `proyecto` o `modulo`. En A.4 apareció `DOC-003` pese a estar inactivo porque la búsqueda fue puramente semántica. | ChromaDB almacena metadatos junto con los documentos y permite aplicar un `where` nativo durante la consulta. Esto posibilitará exigir `activo=true` y una plataforma determinada al recuperar resultados. Se implementará y demostrará en B.4; aún no se presenta como una prueba ejecutada. |
+| CRUD ineficiente y concurrencia limitada | El `IndexFlatIP` conserva vectores y requiere mantener por separado su correspondencia con IDs y documentos. Actualizar o eliminar conocimiento exige coordinar índice, manifiesto y corpus; FAISS no aporta por sí solo una API documental completa ni gestión de concurrencia. | ChromaDB integra IDs, documentos y metadatos y ofrece `get`, `upsert`, `update` y `delete` dentro de una colección persistente. Esto simplifica el mantenimiento incremental y prepara el evento de negocio B.3. No se han probado escrituras concurrentes reales ni se presume coordinación automática entre servidores. |
+
+FAISS sigue siendo útil como índice liviano y rápido para búsqueda vectorial pura. ChromaDB se eligió cuando el dominio requiere persistencia documental, metadatos, filtros y actualización incremental; las capacidades posteriores se evaluarán en los apartados correspondientes.
